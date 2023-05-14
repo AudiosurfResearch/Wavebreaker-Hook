@@ -1,5 +1,5 @@
 # Wavebreaker-Hook
-DLL file that enables an Audiosurf game client to connect to [Wavebreaker](https://github.com/AudiosurfResearch/Wavebreaker) (or any other Audiosurf 1 server implementation)
+DLL file that enables an Audiosurf game client to connect to [Wavebreaker](https://github.com/AudiosurfResearch/Wavebreaker) (or any other Audiosurf 1 server implementation).
 This eliminates the need for any changes to the HOSTS file, which brings numerous advantages, like being easier to set up or allowing users to still be able to access the official site, if needed.
 
 # Install
