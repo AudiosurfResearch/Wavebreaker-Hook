@@ -144,6 +144,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="ini.h" />
     <ClInclude Include="SafetyHook\safetyhook.hpp" />
     <ClInclude Include="SafetyHook\Zydis.h" />
   </ItemGroup>

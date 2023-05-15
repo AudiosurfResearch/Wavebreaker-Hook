@@ -3,12 +3,17 @@
 #include <thread>
 #include <stdexcept>
 #include "SafetyHook/safetyhook.hpp"
+#include "ini.h" //mINI
 
 SafetyHookInline g_getserverunicode_hook{};
 SafetyHookInline g_getserver_hook{};
 
+mINI::INIFile file("Wavebreaker-Hook.ini");
+mINI::INIStructure ini;
+std::string newServer;
+
 char* rewriteTargetServer(char* server) {
-	if (strstr(server, "audio-surf") || strstr(server, "audiosurfthegame")) server = _strdup("127.0.0.1"); //TODO: Add config file?
+	if (strstr(server, "audio-surf") || strstr(server, "audiosurfthegame")) server = _strdup(newServer.c_str());
 	return server;
 }
 
@@ -27,6 +32,10 @@ char* __fastcall GetTargetServerHook(void* thisptr, uintptr_t edx)
 uint32_t __stdcall init(void* args) {
 	while (!GetModuleHandleA("HTTP_Fetch_Unicode.dll") || !GetModuleHandleA("17C5B19F-4273-423C-A158-CA6F73046D43.dll")) Sleep(100);
 
+	file.read(ini);
+	if (ini["Config"].has("server")) newServer = ini.get("Config").get("server");
+	else MessageBoxA(nullptr, "Wavebreaker hook config error!", "Error", MB_OK | MB_ICONERROR);
+	
 	FARPROC targetServerUnicodeHandle = GetProcAddress(GetModuleHandleA("HTTP_Fetch_Unicode.dll"), "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ");
 	FARPROC targetServerHandle = GetProcAddress(GetModuleHandleA("17C5B19F-4273-423C-A158-CA6F73046D43.dll"), "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ");
 	g_getserverunicode_hook = safetyhook::create_inline((uintptr_t)targetServerUnicodeHandle, (uintptr_t)GetTargetServerUnicodeHook);
