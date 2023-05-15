@@ -46,3 +46,10 @@ jobs:
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
       run: msbuild /m /p:Configuration=${{matrix.buildconfig}} ${{env.SOLUTION_FILE_PATH}} /p:Platform=x86
+      
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        name: "Wavebreaker-Hook-${{matrix.buildconfig}}.dll"
+        path: "D:\\a\\Wavebreaker-Hook\\Wavebreaker-Hook\\${{matrix.buildconfig}}\\Wavebreaker-Hook.dll"
+        
