@@ -4,3 +4,4 @@
 
 // Windows headers
 #include <windows.h>
+#include <WinInet.h>
