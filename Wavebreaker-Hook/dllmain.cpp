@@ -57,6 +57,9 @@ HINTERNET WINAPI OpenRequestHook(HINTERNET hConnect,
 {
 	if (!dwFlags)
 		dwFlags = INTERNET_FLAG_SECURE;
+	if (dwFlags == INTERNET_FLAG_RELOAD)
+		dwFlags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_SECURE;
+
 	return g_httpopenrequesta_hook.stdcall<HINTERNET>(hConnect,
 		lpszVerb,
 		lpszObjectName,
