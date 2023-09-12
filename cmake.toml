@@ -1,0 +1,27 @@
+# Reference: https://build-cpp.github.io/cmkr/cmake-toml
+[project]
+name = "Wavebreaker-Hook"
+version = "2.0.0"
+languages = ["CXX"]
+
+[options]
+SAFETYHOOK_FETCH_ZYDIS = true
+
+[variables]
+CMAKE_CXX_STANDARD = "23"
+CMAKE_CXX_STANDARD_REQUIRED = true
+
+[fetch-content]
+safetyhook = { git = "https://github.com/cursey/safetyhook", tag = "v0.1.1" }
+toml11 = { git = "https://github.com/ToruNiina/toml11", tag = "v3.7.1" }
+
+[target.wavebreakerclient]
+type = "shared"
+sources = ["src/**.cpp", "include/**.hpp"]
+include-directories = ["include"]
+compile-features = ["cxx_std_23"]
+link-libraries = ["safetyhook", "toml11", "wininet"]
+
+[[install]]
+targets = ["wavebreakerclient"]
+destination = "bin"
