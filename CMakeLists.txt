@@ -77,10 +77,6 @@ target_compile_features(wavebreakerclient PUBLIC
 	cxx_std_23
 )
 
-target_compile_options(wavebreakerclient PUBLIC
-	"/MACHINE:X86"
-)
-
 target_include_directories(wavebreakerclient PUBLIC
 	include
 )
@@ -89,10 +85,6 @@ target_link_libraries(wavebreakerclient PUBLIC
 	safetyhook
 	toml11
 	wininet
-)
-
-target_link_options(wavebreakerclient PUBLIC
-	"/MACHINE:X86"
 )
 
 install(
