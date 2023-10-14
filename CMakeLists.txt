@@ -38,18 +38,31 @@ project(Wavebreaker-Hook
 		2.1.0
 )
 
+set(VCPKG_TARGET_TRIPLET x86-windows-static)
+
+if(CMKR_ROOT_PROJECT AND NOT CMKR_DISABLE_VCPKG)
+	include(FetchContent)
+	# Fix warnings about DOWNLOAD_EXTRACT_TIMESTAMP
+	if(POLICY CMP0135)
+		cmake_policy(SET CMP0135 NEW)
+	endif()
+	message(STATUS "Fetching vcpkg (2023.08.09)...")
+	FetchContent_Declare(vcpkg URL "https://github.com/microsoft/vcpkg/archive/refs/tags/2023.08.09.tar.gz")
+	FetchContent_GetProperties(vcpkg)
+	if(NOT vcpkg_POPULATED)
+		FetchContent_Populate(vcpkg)
+		include("${vcpkg_SOURCE_DIR}/scripts/buildsystems/vcpkg.cmake")
+	endif()
+endif()
+
 include(FetchContent)
 
-# Fix warnings about DOWNLOAD_EXTRACT_TIMESTAMP
-if(POLICY CMP0135)
-	cmake_policy(SET CMP0135 NEW)
-endif()
-message(STATUS "Fetching safetyhook (v0.1.1)...")
+message(STATUS "Fetching safetyhook (v0.1.3)...")
 FetchContent_Declare(safetyhook SYSTEM
 	GIT_REPOSITORY
 		"https://github.com/cursey/safetyhook"
 	GIT_TAG
-		v0.1.1
+		v0.1.3
 )
 FetchContent_MakeAvailable(safetyhook)
 
@@ -71,11 +84,17 @@ FetchContent_Declare(spdlog SYSTEM
 )
 FetchContent_MakeAvailable(spdlog)
 
+# Packages
+find_package(imgui REQUIRED CONFIG)
+
 # Target: wavebreakerclient
 set(wavebreakerclient_SOURCES
+	"src/D3D9Hook.cpp"
 	"src/dllmain.cpp"
+	"include/D3D9Hook.hpp"
 	"include/config.hpp"
 	"include/nethook.hpp"
+	"include/overlay.hpp"
 	cmake.toml
 )
 
@@ -97,6 +116,8 @@ target_link_libraries(wavebreakerclient PUBLIC
 	toml11
 	spdlog
 	wininet
+	imgui::imgui
+	D3d9
 )
 
 install(
