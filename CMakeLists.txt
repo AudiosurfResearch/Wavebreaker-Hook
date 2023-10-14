@@ -74,6 +74,8 @@ FetchContent_MakeAvailable(spdlog)
 # Target: wavebreakerclient
 set(wavebreakerclient_SOURCES
 	"src/dllmain.cpp"
+	"include/config.hpp"
+	"include/nethook.hpp"
 	cmake.toml
 )
 

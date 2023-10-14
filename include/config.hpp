@@ -1,4 +1,5 @@
 #include <toml.hpp>
+#include <spdlog/spdlog.h>
 
 namespace wavebreaker
 {
