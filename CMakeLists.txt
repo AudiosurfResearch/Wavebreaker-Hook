@@ -62,6 +62,15 @@ FetchContent_Declare(toml11 SYSTEM
 )
 FetchContent_MakeAvailable(toml11)
 
+message(STATUS "Fetching spdlog (v1.12.0)...")
+FetchContent_Declare(spdlog SYSTEM
+	GIT_REPOSITORY
+		"https://github.com/gabime/spdlog"
+	GIT_TAG
+		v1.12.0
+)
+FetchContent_MakeAvailable(spdlog)
+
 # Target: wavebreakerclient
 set(wavebreakerclient_SOURCES
 	"src/dllmain.cpp"
@@ -84,6 +93,7 @@ target_include_directories(wavebreakerclient PUBLIC
 target_link_libraries(wavebreakerclient PUBLIC
 	safetyhook
 	toml11
+	spdlog
 	wininet
 )
 
