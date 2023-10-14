@@ -35,7 +35,7 @@ project(Wavebreaker-Hook
 	LANGUAGES
 		CXX
 	VERSION
-		2.0.0
+		2.1.0
 )
 
 include(FetchContent)

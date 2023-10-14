@@ -7,18 +7,15 @@
 #include <stdexcept>
 
 #include <safetyhook.hpp>
-#include <toml.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h>
+
+#include "config.hpp"
 
 SafetyHookInline g_getserverunicode_hook{};
 SafetyHookInline g_getserver_hook{};
 SafetyHookInline g_internetconnecta_hook{};
 SafetyHookInline g_httpopenrequesta_hook{};
-
-auto data = toml::parse("Wavebreaker-Client.toml");
-std::string newServer;
-bool verboseLog;
 
 // Create a file rotating logger with 5 MB size max and 3 rotated files
 auto max_size = 1048576 * 5;
@@ -28,7 +25,7 @@ auto logger = spdlog::rotating_logger_mt("wavebreaker_client", "logs/wavebreaker
 char *rewriteTargetServer(char *server)
 {
 	if (strstr(server, "audio-surf") || strstr(server, "audiosurfthegame"))
-		server = _strdup(newServer.c_str());
+		server = _strdup(wavebreaker::config::server.c_str());
 	return server;
 }
 
@@ -93,11 +90,9 @@ uint32_t __stdcall init(void *args)
 	spdlog::flush_on(spdlog::level::debug);
 	spdlog::info("Init");
 
-	spdlog::info("Loading config");
 	try
 	{
-		newServer = toml::find<std::string>(data, "server");
-		verboseLog = toml::find<bool>(data, "verbose");
+		wavebreaker::config::init();
 	}
 	catch (const std::exception &e)
 	{
@@ -106,7 +101,7 @@ uint32_t __stdcall init(void *args)
 		return 1;
 	}
 
-	if (verboseLog)
+	if (wavebreaker::config::verbose)
 	{
 		spdlog::set_level(spdlog::level::debug);
 		spdlog::debug("Verbose logging enabled!");
