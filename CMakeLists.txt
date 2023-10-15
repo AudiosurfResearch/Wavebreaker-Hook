@@ -91,12 +91,15 @@ find_package(imgui REQUIRED CONFIG)
 set(wavebreakerclient_SOURCES
 	"src/D3D9Hook.cpp"
 	"src/DInputHook.cpp"
+	"src/WindowsMessageHook.cpp"
 	"src/dllmain.cpp"
 	"include/D3D9Hook.hpp"
 	"include/DInputHook.hpp"
+	"include/WindowsMessageHook.hpp"
 	"include/config.hpp"
 	"include/nethook.hpp"
 	"include/overlay.hpp"
+	"include/utility.hpp"
 	cmake.toml
 )
 
