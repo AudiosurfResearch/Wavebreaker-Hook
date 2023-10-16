@@ -59,7 +59,7 @@ namespace wavebreaker
             return false;
         }
 
-        spdlog::debug("Got Direct3DCreate9 {0:p}", (void*)d3dCreate9);
+        spdlog::debug("Got Direct3DCreate9 {0:p}", (void *)d3dCreate9);
 
         auto d3d = d3dCreate9(D3D_SDK_VERSION);
 
@@ -69,7 +69,7 @@ namespace wavebreaker
             return false;
         }
 
-        spdlog::debug("Got IDirect3D9 {0:p}", (void*)d3d);
+        spdlog::debug("Got IDirect3D9 {0:p}", (void *)d3d);
 
         D3DPRESENT_PARAMETERS pp{};
 
@@ -97,14 +97,14 @@ namespace wavebreaker
             return false;
         }
 
-        spdlog::debug("Got IDirect3DDevice9 {0:p}", (void*)device);
+        spdlog::debug("Got IDirect3DDevice9 {0:p}", (void *)device);
 
         // Grab the addresses of the methods we want to hook.
         auto present = (*(uintptr_t **)device)[17];
         auto reset = (*(uintptr_t **)device)[16];
 
-        spdlog::debug("Got IDirect3DDevice9::Present {0:p}", (void*)present);
-        spdlog::debug("Got IDirect3DDevice9::Reset {0:p}", (void*)reset);
+        spdlog::debug("Got IDirect3DDevice9::Present {0:p}", (void *)present);
+        spdlog::debug("Got IDirect3DDevice9::Reset {0:p}", (void *)reset);
 
         device->Release();
         d3d->Release();
@@ -140,9 +140,7 @@ namespace wavebreaker
         }
 
         // Call the original present.
-        auto originalPresent = (decltype(D3D9Hook::present) *)d3d9->m_presentHook.trampoline().address();
-
-        return originalPresent(device, src, dest, wnd, dirtyRgn);
+        return d3d9->m_presentHook.stdcall<HRESULT>(device, src, dest, wnd, dirtyRgn);
     }
 
     HRESULT D3D9Hook::reset(IDirect3DDevice9 *device, D3DPRESENT_PARAMETERS *presentParams)
@@ -158,8 +156,7 @@ namespace wavebreaker
         }
 
         // Call the original reset.
-        auto originalReset = (decltype(D3D9Hook::reset) *)d3d9->m_resetHook.trampoline().address();
-        auto result = originalReset(device, presentParams);
+        auto result = d3d9->m_resetHook.stdcall<HRESULT>(device, presentParams);
 
         // Call our post reset callback.
         if (result == D3D_OK && d3d9->onPostReset)
