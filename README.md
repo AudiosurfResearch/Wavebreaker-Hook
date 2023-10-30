@@ -1,4 +1,4 @@
-**If you're an end-user and don't have an actual reason to install this manually, please use [the installer!](https://github.com/AudiosurfResearch/Wavebreaker-Installer)!**
+**If you're an end-user and don't have an actual reason to install this manually, please use [the installer!](https://github.com/AudiosurfResearch/Wavebreaker-Installer)**
 
 # Wavebreaker-Hook
 DLL file that enables an Audiosurf game client to connect to [Wavebreaker](https://github.com/AudiosurfResearch/Wavebreaker) (or any other Audiosurf 1 server implementation).
