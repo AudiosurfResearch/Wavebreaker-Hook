@@ -11,7 +11,6 @@
 
 #include "config.hpp"
 #include "nethook.hpp"
-#include "overlay.hpp"
 
 // Create a file rotating logger with 5 MB size max and 3 rotated files
 auto max_size = 1048576 * 5;
@@ -54,8 +53,6 @@ uint32_t __stdcall init(void *args)
 		MessageBoxA(nullptr, "Wavebreaker hook failed!", "Error", MB_OK | MB_ICONERROR);
 		return 1;
 	}
-
-	wavebreaker::overlay::init();
 
 	spdlog::info("Done");
 
