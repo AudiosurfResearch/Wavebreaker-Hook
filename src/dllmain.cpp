@@ -22,7 +22,7 @@ uint32_t __stdcall init(void *args)
 	spdlog::set_default_logger(logger);
 	spdlog::set_level(spdlog::level::info);
 	spdlog::flush_on(spdlog::level::debug);
-	spdlog::info("Init");
+	spdlog::info("Initializing Wavebreaker client.");
 
 	try
 	{
@@ -30,7 +30,7 @@ uint32_t __stdcall init(void *args)
 	}
 	catch (const std::exception &e)
 	{
-		spdlog::error("Exception thrown when loading config: {}", e.what());
+		spdlog::critical("Exception thrown when loading config: {}", e.what());
 		MessageBoxA(nullptr, "Wavebreaker client config error!", "Error", MB_OK | MB_ICONERROR);
 		return 1;
 	}
@@ -42,7 +42,7 @@ uint32_t __stdcall init(void *args)
 	}
 
 	while (!GetModuleHandleA("HTTP_Fetch_Unicode.dll") || !GetModuleHandleA("17C5B19F-4273-423C-A158-CA6F73046D43.dll"))
-		Sleep(100);
+		Sleep(125);
 
 	try
 	{

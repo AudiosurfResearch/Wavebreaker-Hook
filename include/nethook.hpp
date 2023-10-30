@@ -92,7 +92,7 @@ namespace wavebreaker
             g_httpopenrequesta_hook = safetyhook::create_inline((void *)HttpOpenRequestA, (void *)OpenRequestHook);
             if (!g_getserver_hook || !g_getserverunicode_hook || !g_internetconnecta_hook || !g_httpopenrequesta_hook)
             {
-                spdlog::error("Failed to attach hook(s). Hook addresses: {0:p} {1:p} {2:p} {3:p}", fmt::ptr(&g_getserver_hook), fmt::ptr(&g_getserverunicode_hook), fmt::ptr(&g_internetconnecta_hook), fmt::ptr(&g_httpopenrequesta_hook));
+                spdlog::critical("Failed to attach hook(s). Hook addresses: {0:p} {1:p} {2:p} {3:p}", fmt::ptr(&g_getserver_hook), fmt::ptr(&g_getserverunicode_hook), fmt::ptr(&g_internetconnecta_hook), fmt::ptr(&g_httpopenrequesta_hook));
                 throw std::runtime_error("Hook failed");
             }
         }
