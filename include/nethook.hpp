@@ -84,15 +84,38 @@ namespace wavebreaker
         void init()
         {
             spdlog::info("Attaching networking hooks");
-            FARPROC targetServerUnicodeHandle = GetProcAddress(GetModuleHandleA("HTTP_Fetch_Unicode.dll"), "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ");
-            FARPROC targetServerHandle = GetProcAddress(GetModuleHandleA("17C5B19F-4273-423C-A158-CA6F73046D43.dll"), "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ");
-            g_getserverunicode_hook = safetyhook::create_inline((void *)targetServerUnicodeHandle, (void *)GetTargetServerUnicodeHook);
-            g_getserver_hook = safetyhook::create_inline((void *)targetServerHandle, (void *)GetTargetServerHook);
             g_internetconnecta_hook = safetyhook::create_inline((void *)InternetConnectA, (void *)InternetConnectHook);
             g_httpopenrequesta_hook = safetyhook::create_inline((void *)HttpOpenRequestA, (void *)OpenRequestHook);
+
+            FARPROC targetServerUnicodeHandle;
+            FARPROC targetServerHandle;
+            int tryCount;
+
+            while ((!g_getserverunicode_hook || !g_getserverunicode_hook) && tryCount < 5)
+            {
+                spdlog::debug("Network hook attempt {0}", tryCount);
+                Sleep(75);
+                targetServerUnicodeHandle = GetProcAddress(GetModuleHandleA("HTTP_Fetch_Unicode.dll"), "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ");
+                targetServerHandle = GetProcAddress(GetModuleHandleA("17C5B19F-4273-423C-A158-CA6F73046D43.dll"), "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ");
+                spdlog::debug("Networking channel function handles: {0:p}, {1:p}", fmt::ptr(targetServerUnicodeHandle), fmt::ptr(targetServerHandle));
+
+                g_getserverunicode_hook = safetyhook::create_inline((void *)targetServerUnicodeHandle, (void *)GetTargetServerUnicodeHook);
+                g_getserver_hook = safetyhook::create_inline((void *)targetServerHandle, (void *)GetTargetServerHook);
+
+                tryCount++;
+            }
+
             if (!g_getserver_hook || !g_getserverunicode_hook || !g_internetconnecta_hook || !g_httpopenrequesta_hook)
             {
-                spdlog::critical("Failed to attach hook(s). Hook addresses: {0:p} {1:p} {2:p} {3:p}", fmt::ptr(&g_getserver_hook), fmt::ptr(&g_getserverunicode_hook), fmt::ptr(&g_internetconnecta_hook), fmt::ptr(&g_httpopenrequesta_hook));
+                spdlog::critical("Failed to attach hook(s). Hook destinations are: {0:p} {1:p} {2:p} {3:p}, hook targets are: {4:p}, {5:p}, {6:p}, {7:p}",
+                                 fmt::ptr(g_getserver_hook.destination()),
+                                 fmt::ptr(g_getserverunicode_hook.destination()),
+                                 fmt::ptr(g_internetconnecta_hook.destination()),
+                                 fmt::ptr(g_httpopenrequesta_hook.destination()),
+                                 fmt::ptr(g_getserver_hook.target()),
+                                 fmt::ptr(g_getserverunicode_hook.target()),
+                                 fmt::ptr(g_internetconnecta_hook.target()),
+                                 fmt::ptr(g_httpopenrequesta_hook.target()));
                 throw std::runtime_error("Hook failed");
             }
         }

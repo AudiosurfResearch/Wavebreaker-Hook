@@ -42,7 +42,7 @@ uint32_t __stdcall init(void *args)
 	}
 
 	while (!GetModuleHandleA("HTTP_Fetch_Unicode.dll") || !GetModuleHandleA("17C5B19F-4273-423C-A158-CA6F73046D43.dll"))
-		Sleep(125);
+		Sleep(100);
 
 	try
 	{
