@@ -23,7 +23,7 @@ namespace wavebreaker
         char *rewriteTargetServer(char *server)
         {
             if (strstr(server, "audio-surf") || strstr(server, "audiosurfthegame"))
-                server = _strdup(wavebreaker::config::server.c_str());
+                server = _strdup(config::server.c_str());
             return server;
         }
 
@@ -51,8 +51,10 @@ namespace wavebreaker
                                              DWORD_PTR dwContext)
         {
             spdlog::debug("InternetConnect hook hit: {0} {1}", lpszServerName, nServerPort);
-            if (nServerPort == 80)
+            if (nServerPort == 80 && !config::forceInsecure)
                 nServerPort = 443;
+            if (nServerPort == 443 && config::forceInsecure)
+                nServerPort = 80;
             return g_internetconnecta_hook.stdcall<HINTERNET>(hInternet, lpszServerName, nServerPort, lpszUserName, lpszPassword, dwService, dwFlags, dwContext);
         }
 
@@ -65,10 +67,17 @@ namespace wavebreaker
                                          DWORD dwFlags,
                                          DWORD_PTR dwContext)
         {
-            if (!dwFlags)
-                dwFlags = INTERNET_FLAG_SECURE;
-            if (dwFlags == INTERNET_FLAG_RELOAD)
-                dwFlags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_SECURE;
+            if (config::forceInsecure)
+            {
+                dwFlags &= ~INTERNET_FLAG_SECURE;
+            }
+            else
+            {
+                if (!dwFlags)
+                    dwFlags = INTERNET_FLAG_SECURE;
+                if (dwFlags == INTERNET_FLAG_RELOAD)
+                    dwFlags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_SECURE;
+            }
 
             spdlog::debug("OpenRequest hook hit: {0} {1} {2} {3}", lpszVersion, lpszVerb, lpszReferrer, lpszObjectName);
             return g_httpopenrequesta_hook.stdcall<HINTERNET>(hConnect,
@@ -89,7 +98,7 @@ namespace wavebreaker
 
             FARPROC targetServerUnicodeHandle;
             FARPROC targetServerHandle;
-            int tryCount;
+            int tryCount = 0;
 
             while ((!g_getserverunicode_hook || !g_getserverunicode_hook) && tryCount < 5)
             {

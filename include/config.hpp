@@ -7,6 +7,7 @@ namespace wavebreaker
     {
         std::string server;
         bool verbose;
+        bool forceInsecure;
 
         void init()
         {
@@ -15,6 +16,7 @@ namespace wavebreaker
 
             server = toml::find<std::string>(data, "server");
             verbose = toml::find<bool>(data, "verbose");
+            forceInsecure = toml::find<bool>(data, "forceInsecure");
         }
     }
 }
