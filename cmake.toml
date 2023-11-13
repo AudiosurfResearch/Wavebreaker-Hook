@@ -1,7 +1,7 @@
 # Reference: https://build-cpp.github.io/cmkr/cmake-toml
 [project]
 name = "Wavebreaker-Hook"
-version = "2.1.0"
+version = "2.2.0"
 languages = ["CXX"]
 cmake-after = """
 set(VCPKG_TARGET_TRIPLET x86-windows-static)
