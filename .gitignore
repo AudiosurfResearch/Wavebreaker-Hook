@@ -1,5 +1,2 @@
-# cmkr
-build*/
-cmake-build*/
-.idea/
-.vscode/
+/target
+/Cargo.lock
