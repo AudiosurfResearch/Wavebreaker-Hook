@@ -94,3 +94,10 @@ pub fn init_hooks() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+pub fn deinit_hooks() -> anyhow::Result<()> {
+    crochet::disable!(connect_hook)?;
+    crochet::disable!(openrequest_hook)?;
+
+    Ok(())
+}

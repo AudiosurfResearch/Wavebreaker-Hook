@@ -28,7 +28,7 @@ use windows::{
     },
 };
 
-use crate::hooking::init_hooks;
+use crate::hooking::{deinit_hooks, init_hooks};
 
 unsafe fn main() -> anyhow::Result<()> {
     let file_appender = RollingFileAppender::builder()
@@ -101,6 +101,7 @@ unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c
 
     if reason == DLL_PROCESS_DETACH {
         info!("Detaching.");
+        deinit_hooks().unwrap();
     }
 
     TRUE
