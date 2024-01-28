@@ -14,11 +14,20 @@ features = [
     "Win32_Foundation",
     "Win32_System_SystemServices",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_Security"
 ]
 
 [dependencies]
 anyhow = "1.*"
-retour = { version = "0.3.1", features = ["nightly", "static-detour", "thiscall-abi"] }
+retour = { version = "0.3.1", features = [
+    "nightly",
+    "static-detour",
+    "thiscall-abi",
+] }
+serde = { version = "1.0.196", features = ["derive"] }
 tracing = "0.*"
 tracing-appender = "0.*"
 tracing-subscriber = "0.3.18"
+figment = { version = "0.*", features = ["toml", "env"] }
