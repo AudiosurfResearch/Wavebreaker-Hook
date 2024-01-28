@@ -3,13 +3,13 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct Config {
-    main: Main,
+    pub main: Main,
 }
 
 #[derive(Deserialize)]
 pub struct Main {
-    server: String,
-    force_insecure: bool,
+    pub server: String,
+    pub force_insecure: bool,
 }
 
 pub static CONFIG: OnceLock<Config> = OnceLock::new();

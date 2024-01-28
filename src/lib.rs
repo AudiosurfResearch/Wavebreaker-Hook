@@ -6,13 +6,16 @@ use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use std::ffi::c_void;
+use std::ffi::{c_void, CString};
 use std::thread;
-use tracing::info;
+use tracing::{error, info};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::{fmt, layer::SubscriberExt};
+use tracing_subscriber::{util::SubscriberInitExt, EnvFilter};
 use windows::{
-    core::{s, PCWSTR},
+    core::{s, PCSTR, PCWSTR},
     Win32::{
-        Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
+        Foundation::{BOOL, HMODULE, HWND, TRUE},
         System::SystemServices::DLL_PROCESS_ATTACH,
         System::{
             LibraryLoader::{
@@ -21,22 +24,22 @@ use windows::{
             },
             SystemServices::DLL_PROCESS_DETACH,
         },
-        UI::WindowsAndMessaging::{MessageBoxA, MB_ICONERROR, MB_ICONINFORMATION, MB_OK},
+        UI::WindowsAndMessaging::{MessageBoxA, MB_ICONERROR, MB_OK},
     },
 };
 
+use crate::hooking::init_hooks;
+
 unsafe fn main() -> anyhow::Result<()> {
-    MessageBoxA(
-        HWND(0),
-        s!("Thread running!"),
-        s!("Testing"),
-        MB_OK | MB_ICONERROR,
-    );
-
-    let file_appender = tracing_appender::rolling::daily("./logs", "wavebreaker_client.log");
-    tracing_subscriber::fmt().with_writer(file_appender).init();
-    info!("Attached!");
-
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix("wavebreaker_client")
+        .filename_suffix("log")
+        .build("./logs")?;
+    tracing_subscriber::registry()
+        .with(fmt::layer().with_writer(file_appender))
+        .with(EnvFilter::from_default_env())
+        .init();
     info!("Initializing...");
 
     let config: Config = Figment::new()
@@ -45,7 +48,13 @@ unsafe fn main() -> anyhow::Result<()> {
         .extract()?;
     let _ = config::CONFIG.set(config);
 
-    info!("{:?}", GetModuleHandleA(s!("asdfasdfasdf.dll")));
+    while GetModuleHandleA(s!("17C5B19F-4273-423C-A158-CA6F73046D43.dll")).is_err()
+        || GetModuleHandleA(s!("HTTP_Fetch_Unicode.dll")).is_err()
+    {
+        thread::sleep(std::time::Duration::from_millis(150));
+    }
+    info!("Necessary DLLs loaded, attaching hooks");
+    init_hooks()?;
 
     loop {
         thread::sleep(std::time::Duration::from_millis(100));
@@ -58,35 +67,41 @@ unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c
     if reason == DLL_PROCESS_ATTACH {
         let _ = DisableThreadLibraryCalls(hinst);
 
-        MessageBoxA(
-            HWND(0),
-            s!("Attaching"),
-            s!("Testing"),
-            MB_OK | MB_ICONINFORMATION,
-        );
-
-        //Bump the reference count so we don't get unloaded
+        // Bump the reference count so we don't get unloaded
         let mut handle = HMODULE(0);
         let _ = GetModuleHandleExW(
             GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
             PCWSTR::from_raw(DllMain as *const () as *const u16),
             &mut handle as *mut HMODULE,
         );
-        // TODO: Use WinAPI thread functions directly!
-        thread::spawn(|| main);
 
-        return TRUE;
+        // TODO: Use WinAPI thread functions directly and properly clean up on detach!
+        thread::spawn(|| {
+            match main() {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("{:?}", e);
+                    let error_cstr = CString::new(format!(
+                        "{:?}\r\nThe client will be unloaded.\r\nPlease report this issue!",
+                        e
+                    ))
+                    .unwrap();
+                    let error_pcstr = PCSTR::from_raw(error_cstr.as_bytes_with_nul().as_ptr());
+
+                    MessageBoxA(
+                        HWND(0),
+                        error_pcstr,
+                        s!("Wavebreaker client fatal error"),
+                        MB_OK | MB_ICONERROR,
+                    );
+                }
+            };
+        });
     }
 
     if reason == DLL_PROCESS_DETACH {
-        MessageBoxA(
-            HWND(0),
-            s!("Detaching!"),
-            s!("Testing"),
-            MB_OK | MB_ICONERROR,
-        );
-        return TRUE;
+        info!("Detaching.");
     }
 
-    FALSE
+    TRUE
 }
