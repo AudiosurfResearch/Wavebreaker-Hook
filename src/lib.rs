@@ -10,12 +10,15 @@ use std::ffi::c_void;
 use std::thread;
 use tracing::info;
 use windows::{
-    core::s,
+    core::{s, PCWSTR},
     Win32::{
         Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
         System::SystemServices::DLL_PROCESS_ATTACH,
         System::{
-            LibraryLoader::{DisableThreadLibraryCalls, GetModuleHandleA},
+            LibraryLoader::{
+                DisableThreadLibraryCalls, GetModuleHandleA, GetModuleHandleExW,
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
+            },
             SystemServices::DLL_PROCESS_DETACH,
         },
         UI::WindowsAndMessaging::{MessageBoxA, MB_ICONERROR, MB_ICONINFORMATION, MB_OK},
@@ -62,7 +65,16 @@ unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c
             MB_OK | MB_ICONINFORMATION,
         );
 
+        //Bump the reference count so we don't get unloaded
+        let mut handle = HMODULE(0);
+        let _ = GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            PCWSTR::from_raw(DllMain as *const () as *const u16),
+            &mut handle as *mut HMODULE,
+        );
+        // TODO: Use WinAPI thread functions directly!
         thread::spawn(|| main);
+
         return TRUE;
     }
 
