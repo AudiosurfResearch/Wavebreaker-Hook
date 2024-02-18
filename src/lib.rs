@@ -53,6 +53,7 @@ unsafe fn main() -> anyhow::Result<()> {
 
     while GetModuleHandleA(s!("17C5B19F-4273-423C-A158-CA6F73046D43.dll")).is_err()
         || GetModuleHandleA(s!("HTTP_Fetch_Unicode.dll")).is_err()
+        || GetModuleHandleA(s!("bass.dll")).is_err()
     {
         thread::sleep(std::time::Duration::from_millis(150));
     }

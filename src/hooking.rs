@@ -3,6 +3,8 @@ use std::ffi::c_int;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::ffi::OsString;
+use std::os::windows::prelude::*;
 
 use tracing::debug;
 use windows::core::PCSTR;
@@ -10,6 +12,36 @@ use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
 
 use crate::config::CONFIG;
+
+#[crochet::hook("bass.dll", "BASS_StreamCreateFile")]
+unsafe fn songfilestream_hook(
+    mem: bool,
+    file: *const c_void,
+    offset: u64,
+    length: u64,
+    flags: u32,
+) -> *mut c_void {
+    if mem {
+        debug!(
+            "songfilestream_hook called with mem: {:?} {:?} {:?}",
+            file, offset, length
+        );
+    } else {
+        // file is a pointer to a string
+        // WARNING: IT'S IN UTF-16
+        let file = u16_ptr_to_string(file as *const u16);
+        let file = file.to_string_lossy();
+
+        debug!(
+            "songfilestream_hook called with file: {:?} {:?} {:?}",
+            file,
+            offset,
+            length
+        );
+    }
+
+    call_original!(mem, file, offset, length, flags)
+}
 
 #[crochet::hook(compile_check, "Wininet.dll", "HttpSendRequestA")]
 unsafe fn send_hook(
@@ -171,12 +203,20 @@ fn rewrite_server(server: &str) -> String {
     }
 }
 
+unsafe fn u16_ptr_to_string(ptr: *const u16) -> OsString {
+    let len = (0..).take_while(|&i| *ptr.offset(i) != 0).count();
+    let slice = std::slice::from_raw_parts(ptr, len);
+
+    OsString::from_wide(slice)
+}
+
 pub fn init_hooks() -> anyhow::Result<()> {
     crochet::enable!(connect_hook)?;
     crochet::enable!(openrequest_hook)?;
     crochet::enable!(gettargetserver_unicode_hook)?;
     crochet::enable!(gettargetserver_hook)?;
     crochet::enable!(send_hook)?;
+    crochet::enable!(songfilestream_hook)?;
 
     Ok(())
 }
@@ -187,6 +227,7 @@ pub fn deinit_hooks() -> anyhow::Result<()> {
     crochet::disable!(gettargetserver_unicode_hook)?;
     crochet::disable!(gettargetserver_hook)?;
     crochet::disable!(send_hook)?;
+    crochet::disable!(songfilestream_hook)?;
 
     Ok(())
 }
