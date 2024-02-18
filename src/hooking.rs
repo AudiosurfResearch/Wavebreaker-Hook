@@ -5,8 +5,12 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::OsString;
 use std::os::windows::prelude::*;
+use std::path::Path;
 
+use lofty::ItemKey;
+use lofty::TaggedFileExt;
 use tracing::debug;
+use tracing::trace;
 use windows::core::PCSTR;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
@@ -22,22 +26,45 @@ unsafe fn songfilestream_hook(
     flags: u32,
 ) -> *mut c_void {
     if mem {
-        debug!(
-            "songfilestream_hook called with mem: {:?} {:?} {:?}",
-            file, offset, length
-        );
-    } else {
-        // file is a pointer to a string
-        // WARNING: IT'S IN UTF-16
-        let file = u16_ptr_to_string(file as *const u16);
-        let file = file.to_string_lossy();
-
-        debug!(
-            "songfilestream_hook called with file: {:?} {:?} {:?}",
+        trace!(
+            "songfilestream_hook called on memory: {:?} {:?} {:?}",
             file,
             offset,
             length
         );
+    } else {
+        // file is a pointer to a string
+        // WARNING: IT'S IN UTF-16
+        let file_path = u16_ptr_to_string(file as *const u16);
+        let file_path = Path::new(&file_path);
+
+        debug!(
+            "songfilestream_hook called with file: {:?} {:?} {:?}",
+            file_path, offset, length
+        );
+
+        if file_path.is_absolute() {
+            let tagged_file = match lofty::read_from_path(file_path) {
+                Ok(res) => res,
+                Err(e) => {
+                    debug!("lofty::read_from_path failed {:?}", e);
+                    return call_original!(mem, file, offset, length, flags);
+                }
+            };
+
+            let tag = tagged_file.primary_tag();
+            match tag {
+                Some(tag) => {
+                    debug!(
+                        "Recording MBID found in tags: {:?}",
+                        tag.get(&ItemKey::MusicBrainzRecordingId)
+                    );
+                }
+                None => {
+                    debug!("File has no tags");
+                }
+            }
+        }
     }
 
     call_original!(mem, file, offset, length, flags)
@@ -51,6 +78,14 @@ unsafe fn send_hook(
     optional: *mut c_void,
     optional_len: u32,
 ) -> c_int {
+    if optional.is_null() || optional_len == 0 {
+        debug!(
+            "send_hook called without data {:?}",
+            CString::from_vec_unchecked(headers.as_bytes().to_vec()),
+        );
+        return call_original!(hrequest, headers, headers_len, optional, optional_len);
+    }
+
     //with length and pointer, read the optional data
     let data = std::slice::from_raw_parts(optional as *const u8, optional_len as usize);
     let data = std::str::from_utf8(data).unwrap();
