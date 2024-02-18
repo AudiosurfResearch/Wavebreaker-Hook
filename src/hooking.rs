@@ -8,14 +8,17 @@ use std::os::windows::prelude::*;
 use std::path::Path;
 
 use lofty::ItemKey;
+use lofty::ItemValue;
 use lofty::TaggedFileExt;
 use tracing::debug;
+use tracing::error;
 use tracing::trace;
 use windows::core::PCSTR;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
 
 use crate::config::CONFIG;
+use crate::state;
 
 #[crochet::hook("bass.dll", "BASS_StreamCreateFile")]
 unsafe fn songfilestream_hook(
@@ -55,10 +58,21 @@ unsafe fn songfilestream_hook(
             let tag = tagged_file.primary_tag();
             match tag {
                 Some(tag) => {
-                    debug!(
-                        "Recording MBID found in tags: {:?}",
-                        tag.get(&ItemKey::MusicBrainzRecordingId)
-                    );
+                    match tag.get(&ItemKey::MusicBrainzRecordingId) {
+                        Some(item) => match item.value() {
+                            ItemValue::Text(mbid) => {
+                                let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+                                global_data.current_mbid = Some(mbid.to_string());
+                                debug!("Recording MBID tag found: {:?}", mbid);
+                            }
+                            _ => {
+                                error!("Recording MBID tag is an invalid data type...?");
+                            }
+                        },
+                        _ => {
+                            debug!("File has no MBID tag");
+                        }
+                    };
                 }
                 None => {
                     debug!("File has no tags");
@@ -94,6 +108,28 @@ unsafe fn send_hook(
         CString::from_vec_unchecked(headers.as_bytes().to_vec()),
         data
     );
+
+    // really crude way to find out if this is a score submission
+    let global_data = state::GLOBAL_DATA.lock().unwrap();
+    if data.contains("artist=")
+        && data.contains("song=")
+        && data.contains("score=")
+        && global_data.current_mbid.is_some()
+    {
+        let encoded_mbid = urlencoding::encode(global_data.current_mbid.as_ref().unwrap());
+        let new_data_string = data.to_string() + "&mbid=" + &encoded_mbid;
+        debug!("New score submission form data: {:?}", new_data_string);
+
+        // allocate new string
+        let new_data = malloc_c_string(&new_data_string) as *mut c_void;
+        return call_original!(
+            hrequest,
+            headers,
+            headers_len,
+            new_data,
+            new_data_string.len() as u32
+        );
+    }
 
     call_original!(hrequest, headers, headers_len, optional, optional_len)
 }
@@ -146,8 +182,8 @@ unsafe fn openrequest_hook(
 ) -> c_int {
     debug!(
         "openrequest_hook called: {:?} {:?} {:?}",
-        CString::from_vec_unchecked(verb.as_bytes().to_vec()),
-        CString::from_vec_unchecked(object_name.as_bytes().to_vec()),
+        verb.to_string().unwrap(),
+        object_name.to_string().unwrap(),
         flags
     );
 
@@ -163,6 +199,11 @@ unsafe fn openrequest_hook(
         }
     }
     debug!("new OpenRequest flags: {:?}", flags);
+
+    if object_name.to_string().unwrap() == "/as_steamlogin/game_fetchsongid_unicode.php" {
+        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+        global_data.current_mbid = None;
+    }
 
     call_original!(
         hconnect,

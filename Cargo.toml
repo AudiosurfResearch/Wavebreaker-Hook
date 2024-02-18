@@ -29,3 +29,4 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 figment = { version = "0.*", features = ["toml", "env"] }
 crochet = "0.2.3"
 lofty = "0.18.2"
+urlencoding = "2.1.3"
