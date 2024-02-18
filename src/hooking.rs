@@ -1,14 +1,35 @@
 use std::ffi::c_char;
 use std::ffi::c_int;
+use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
 
-use tracing::trace;
+use tracing::debug;
 use windows::core::PCSTR;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
 
 use crate::config::CONFIG;
+
+#[crochet::hook(compile_check, "Wininet.dll", "HttpSendRequestA")]
+unsafe fn send_hook(
+    hrequest: c_int,
+    headers: PCSTR,
+    headers_len: u32,
+    optional: *mut c_void,
+    optional_len: u32,
+) -> c_int {
+    //with length and pointer, read the optional data
+    let data = std::slice::from_raw_parts(optional as *const u8, optional_len as usize);
+    let data = std::str::from_utf8(data).unwrap();
+    debug!(
+        "send_hook called: {:?} {:?}",
+        CString::from_vec_unchecked(headers.as_bytes().to_vec()),
+        data
+    );
+
+    call_original!(hrequest, headers, headers_len, optional, optional_len)
+}
 
 #[crochet::hook(compile_check, "Wininet.dll", "InternetConnectA")]
 unsafe fn connect_hook(
@@ -21,7 +42,7 @@ unsafe fn connect_hook(
     flags: u32,
     context: usize,
 ) -> c_int {
-    trace!(
+    debug!(
         "connect_hook called: {:?} {:?}",
         CString::from_vec_unchecked(server_name.as_bytes().to_vec()),
         port
@@ -56,7 +77,7 @@ unsafe fn openrequest_hook(
     mut flags: u32,
     context: usize,
 ) -> c_int {
-    trace!(
+    debug!(
         "openrequest_hook called: {:?} {:?} {:?}",
         CString::from_vec_unchecked(verb.as_bytes().to_vec()),
         CString::from_vec_unchecked(object_name.as_bytes().to_vec()),
@@ -74,7 +95,7 @@ unsafe fn openrequest_hook(
             flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_SECURE;
         }
     }
-    trace!("new OpenRequest flags: {:?}", flags);
+    debug!("new OpenRequest flags: {:?}", flags);
 
     call_original!(
         hconnect,
@@ -93,18 +114,18 @@ unsafe fn openrequest_hook(
     "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ"
 )]
 unsafe extern "thiscall" fn gettargetserver_unicode_hook(this_ptr: c_int) -> *const c_char {
-    trace!("gettargetserver_unicode_hook called: {:?}", this_ptr);
+    debug!("gettargetserver_unicode_hook called: {:?}", this_ptr);
 
     let orig_result = call_original!(this_ptr);
     let c_str = CStr::from_ptr(orig_result);
-    trace!(
+    debug!(
         "gettargetserver_unicode_hook original result: {:?}",
         c_str.to_str()
     );
 
     let new_str = rewrite_server(c_str.to_str().unwrap());
-    trace!("Server rewritten to: {:?}", &new_str);
-    
+    debug!("Server rewritten to: {:?}", &new_str);
+
     malloc_c_string(&new_str) as *const c_char
 }
 
@@ -113,18 +134,15 @@ unsafe extern "thiscall" fn gettargetserver_unicode_hook(this_ptr: c_int) -> *co
     "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ"
 )]
 unsafe extern "thiscall" fn gettargetserver_hook(this_ptr: c_int) -> *const c_char {
-    trace!("gettargetserver_hook called: {:?}", this_ptr);
+    debug!("gettargetserver_hook called: {:?}", this_ptr);
 
     let orig_result = call_original!(this_ptr);
     let c_str = CStr::from_ptr(orig_result);
-    trace!(
-        "gettargetserver_hook original result: {:?}",
-        c_str.to_str()
-    );
+    debug!("gettargetserver_hook original result: {:?}", c_str.to_str());
 
     let new_str = rewrite_server(c_str.to_str().unwrap());
-    trace!("Server rewritten to: {:?}", &new_str);
-    
+    debug!("Server rewritten to: {:?}", &new_str);
+
     malloc_c_string(&new_str) as *const c_char
 }
 
@@ -158,6 +176,7 @@ pub fn init_hooks() -> anyhow::Result<()> {
     crochet::enable!(openrequest_hook)?;
     crochet::enable!(gettargetserver_unicode_hook)?;
     crochet::enable!(gettargetserver_hook)?;
+    crochet::enable!(send_hook)?;
 
     Ok(())
 }
@@ -167,6 +186,7 @@ pub fn deinit_hooks() -> anyhow::Result<()> {
     crochet::disable!(openrequest_hook)?;
     crochet::disable!(gettargetserver_unicode_hook)?;
     crochet::disable!(gettargetserver_hook)?;
+    crochet::disable!(send_hook)?;
 
     Ok(())
 }

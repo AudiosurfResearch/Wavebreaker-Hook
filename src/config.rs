@@ -1,5 +1,5 @@
-use std::sync::OnceLock;
 use serde::Deserialize;
+use std::sync::OnceLock;
 
 #[derive(Deserialize)]
 pub struct Config {

@@ -10,8 +10,8 @@ use std::ffi::{c_void, CString};
 use std::thread;
 use tracing::{error, info};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, layer::SubscriberExt};
-use tracing_subscriber::{util::SubscriberInitExt, EnvFilter};
 use windows::{
     core::{s, PCSTR, PCWSTR},
     Win32::{
@@ -37,8 +37,11 @@ unsafe fn main() -> anyhow::Result<()> {
         .filename_suffix("log")
         .build("./logs")?;
     tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "wavebreaker_client=info".into()),
+        )
         .with(fmt::layer().with_writer(file_appender))
-        .with(EnvFilter::from_default_env())
         .init();
     info!("Initializing...");
 
