@@ -200,6 +200,10 @@ unsafe fn openrequest_hook(
     }
     debug!("new OpenRequest flags: {:?}", flags);
 
+    // reset current_mbid when a new song is loaded
+    // a bit hacky, but we have to do this so we don't submit an old ID when someone starts playing a Radio song
+    // Radio mode songs are loaded via memory so trying to see what file it loads the song from won't work
+    // We could just look at the song it loaded into memory, but the MBID doesn't matter for Radio songs anyway
     if object_name.to_string().unwrap() == "/as_steamlogin/game_fetchsongid_unicode.php" {
         let mut global_data = state::GLOBAL_DATA.lock().unwrap();
         global_data.current_mbid = None;
