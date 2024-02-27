@@ -13,6 +13,7 @@ use lofty::TaggedFileExt;
 use tracing::debug;
 use tracing::error;
 use tracing::trace;
+use url_encoded_data::UrlEncodedData;
 use windows::core::PCSTR;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
@@ -108,16 +109,25 @@ unsafe fn send_hook(
         CString::from_vec_unchecked(headers.as_bytes().to_vec()),
         data
     );
+    let mut data = UrlEncodedData::parse_str(data);
+
+    let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+
+    // store ticket for our own uses
+    if data.exists("ticket") {
+        let ticket = data.get_first("ticket").unwrap();
+        global_data.ticket = Some(ticket.to_string());
+        debug!("Ticket found in data: {:?}", ticket);
+    }
 
     // really crude way to find out if this is a score submission
-    let global_data = state::GLOBAL_DATA.lock().unwrap();
-    if data.contains("artist=")
-        && data.contains("song=")
-        && data.contains("score=")
+    if data.exists("artist")
+        && data.exists("song")
+        && data.exists("score")
         && global_data.current_mbid.is_some()
     {
-        let encoded_mbid = urlencoding::encode(global_data.current_mbid.as_ref().unwrap());
-        let new_data_string = data.to_string() + "&mbid=" + &encoded_mbid;
+        data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
+        let new_data_string = data.to_string_of_original_order();
         debug!("New score submission form data: {:?}", new_data_string);
 
         // allocate new string
