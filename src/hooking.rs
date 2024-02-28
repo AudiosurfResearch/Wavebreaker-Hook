@@ -137,6 +137,21 @@ unsafe fn send_hook(
         debug!("Ticket found in data: {:?}", ticket);
     }
 
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some() {
+        data.set_one("ticket", global_data.ticket.as_ref().unwrap());
+        let new_data_string = data.to_string_of_original_order();
+
+        // allocate new string
+        let new_data = malloc_c_string(&new_data_string) as *mut c_void;
+        return call_original!(
+            hrequest,
+            headers,
+            headers_len,
+            new_data,
+            new_data_string.len() as u32
+        );
+    }
+
     if url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
         && global_data.current_mbid.is_some()
     {
