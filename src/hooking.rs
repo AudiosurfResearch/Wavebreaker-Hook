@@ -4,6 +4,7 @@ use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::OsString;
+use std::mem;
 use std::os::windows::prelude::*;
 use std::path::Path;
 
@@ -15,8 +16,10 @@ use tracing::error;
 use tracing::trace;
 use url_encoded_data::UrlEncodedData;
 use windows::core::PCSTR;
+use windows::Win32::Networking::WinInet::InternetQueryOptionA;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
 use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
+use windows::Win32::Networking::WinInet::INTERNET_OPTION_URL;
 
 use crate::config::CONFIG;
 use crate::state;
@@ -87,7 +90,7 @@ unsafe fn songfilestream_hook(
 
 #[crochet::hook(compile_check, "Wininet.dll", "HttpSendRequestA")]
 unsafe fn send_hook(
-    hrequest: c_int,
+    hrequest: *const c_void,
     headers: PCSTR,
     headers_len: u32,
     optional: *mut c_void,
@@ -100,6 +103,20 @@ unsafe fn send_hook(
         );
         return call_original!(hrequest, headers, headers_len, optional, optional_len);
     }
+
+    // Get the URL so we know where the request is going
+    let mut lpbuffer = [0u8; 1024];
+    let mut lpdwbufferlength = mem::size_of_val(&lpbuffer) as u32;
+    let _ = InternetQueryOptionA(
+        Some(hrequest),
+        INTERNET_OPTION_URL,
+        Some(lpbuffer.as_mut_ptr() as *mut c_void),
+        &mut lpdwbufferlength as *mut u32,
+    );
+
+    // Cut the buffer and convert to string
+    let url = CString::from_vec_unchecked(lpbuffer[..lpdwbufferlength as usize].to_vec());
+    let url = url.to_str().unwrap();
 
     //with length and pointer, read the optional data
     let data = std::slice::from_raw_parts(optional as *const u8, optional_len as usize);
@@ -114,16 +131,13 @@ unsafe fn send_hook(
     let mut global_data = state::GLOBAL_DATA.lock().unwrap();
 
     // store ticket for our own uses
-    if data.exists("ticket") {
+    if data.exists("ticket") && global_data.ticket.is_none() {
         let ticket = data.get_first("ticket").unwrap();
         global_data.ticket = Some(ticket.to_string());
         debug!("Ticket found in data: {:?}", ticket);
     }
 
-    // really crude way to find out if this is a score submission
-    if data.exists("artist")
-        && data.exists("song")
-        && data.exists("score")
+    if url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
         && global_data.current_mbid.is_some()
     {
         data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
