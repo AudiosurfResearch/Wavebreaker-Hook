@@ -13,6 +13,7 @@ use lofty::ItemValue;
 use lofty::TaggedFileExt;
 use tracing::debug;
 use tracing::error;
+use tracing::info;
 use tracing::trace;
 use url_encoded_data::UrlEncodedData;
 use windows::core::PCSTR;
@@ -54,7 +55,7 @@ unsafe fn songfilestream_hook(
             let tagged_file = match lofty::read_from_path(file_path) {
                 Ok(res) => res,
                 Err(e) => {
-                    debug!("lofty::read_from_path failed {:?}", e);
+                    error!("lofty::read_from_path failed {:?}", e);
                     return call_original!(mem, file, offset, length, flags);
                 }
             };
@@ -67,14 +68,30 @@ unsafe fn songfilestream_hook(
                             ItemValue::Text(mbid) => {
                                 let mut global_data = state::GLOBAL_DATA.lock().unwrap();
                                 global_data.current_mbid = Some(mbid.to_string());
-                                debug!("Recording MBID tag found: {:?}", mbid);
+                                info!("Recording MBID tag found: {:?}", mbid);
                             }
                             _ => {
                                 error!("Recording MBID tag is an invalid data type...?");
                             }
                         },
                         _ => {
-                            debug!("File has no MBID tag");
+                            debug!("File has no recording MBID");
+                        }
+                    };
+
+                    match tag.get(&ItemKey::MusicBrainzReleaseId) {
+                        Some(item) => match item.value() {
+                            ItemValue::Text(mbid) => {
+                                let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+                                global_data.current_release_mbid = Some(mbid.to_string());
+                                info!("Release MBID tag found: {:?}", mbid);
+                            }
+                            _ => {
+                                error!("Release MBID tag is an invalid data type...?");
+                            }
+                        },
+                        _ => {
+                            debug!("File has no release MBID");
                         }
                     };
                 }
@@ -137,7 +154,9 @@ unsafe fn send_hook(
         debug!("Ticket found in data: {:?}", ticket);
     }
 
-    if url.ends_with("/as_steamlogin/game_AttemptLoginSteamVerified.php") {
+    if url.ends_with("/as_steamlogin/game_AttemptLoginSteamVerified.php")
+        || url.ends_with("//as_steamlogin/game_CustomNews.php")
+    {
         data.set_one("wvbrclientversion", env!("CARGO_PKG_VERSION"));
         let new_data_string = data.to_string_of_original_order();
 
@@ -172,6 +191,12 @@ unsafe fn send_hook(
         && global_data.current_mbid.is_some()
     {
         data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
+        if global_data.current_release_mbid.is_some() {
+            data.set_one(
+                "releasembid",
+                global_data.current_release_mbid.as_ref().unwrap(),
+            );
+        }
         let new_data_string = data.to_string_of_original_order();
         debug!("New score submission form data: {:?}", new_data_string);
 
@@ -255,13 +280,14 @@ unsafe fn openrequest_hook(
     }
     debug!("new OpenRequest flags: {:?}", flags);
 
-    // reset current_mbid when a new song is loaded
+    // reset MBIDs when a new song is loaded
     // a bit hacky, but we have to do this so we don't submit an old ID when someone starts playing a Radio song
     // Radio mode songs are loaded via memory so trying to see what file it loads the song from won't work
     // We could just look at the song it loaded into memory, but the MBID doesn't matter for Radio songs anyway
     if object_name.to_string().unwrap() == "/as_steamlogin/game_fetchsongid_unicode.php" {
         let mut global_data = state::GLOBAL_DATA.lock().unwrap();
         global_data.current_mbid = None;
+        global_data.current_release_mbid = None;
     }
 
     call_original!(
