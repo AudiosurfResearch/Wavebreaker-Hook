@@ -3,9 +3,7 @@ use std::ffi::c_int;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::ffi::OsString;
 use std::mem;
-use std::os::windows::prelude::*;
 use std::path::Path;
 
 use lofty::ItemKey;
@@ -14,7 +12,6 @@ use lofty::TaggedFileExt;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
-use tracing::trace;
 use url_encoded_data::UrlEncodedData;
 use windows::core::PCSTR;
 use windows::Win32::Networking::WinInet::InternetQueryOptionA;
@@ -23,86 +20,85 @@ use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
 use windows::Win32::Networking::WinInet::INTERNET_OPTION_URL;
 
 use crate::config::CONFIG;
+use crate::q3d_bindings::A3d_Channel;
+use crate::q3d_bindings::Aco_FloatChannel;
+use crate::q3d_bindings::Aco_StringChannel_GetString;
 use crate::state;
 
-#[crochet::hook("bass.dll", "BASS_StreamCreateFile")]
-unsafe fn songfilestream_hook(
-    mem: bool,
-    file: *const c_void,
-    offset: u64,
-    length: u64,
-    flags: u32,
-) -> *mut c_void {
-    if mem {
-        trace!(
-            "songfilestream_hook called on memory: {:?} {:?} {:?}",
-            file,
-            offset,
-            length
-        );
-    } else {
-        // file is a pointer to a string
-        // WARNING: IT'S IN UTF-16
-        let file_path = u16_ptr_to_string(file as *const u16);
-        let file_path = Path::new(&file_path);
+#[crochet::hook("BASS_PreCalcSong.dll", "?CallChannel@Aco_BASS_PreCalcSong@@UAEXXZ")]
+unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
+    let channel = this.as_mut().unwrap();
+    let song_source = channel
+        .GetChild(1)
+        .cast::<Aco_FloatChannel>()
+        .as_mut()
+        .unwrap()
+        .channelFloat_;
 
-        debug!(
-            "songfilestream_hook called with file: {:?} {:?} {:?}",
-            file_path, offset, length
-        );
+    // 0 = File
+    // 1 = CD
+    // 2 = Buffer
+    if song_source != 0.0 {
+        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+        global_data.current_mbid = None;
+        global_data.current_release_mbid = None;
+        return call_original!(this);
+    }
 
-        if file_path.is_absolute() {
-            let tagged_file = match lofty::read_from_path(file_path) {
-                Ok(res) => res,
-                Err(e) => {
-                    error!("lofty::read_from_path failed {:?}", e);
-                    return call_original!(mem, file, offset, length, flags);
+    let song_path = CStr::from_ptr(Aco_StringChannel_GetString(channel.GetChild(4).cast()))
+        .to_str()
+        .unwrap();
+    let song_path = Path::new(&song_path);
+
+    let tagged_file = match lofty::read_from_path(song_path) {
+        Ok(res) => res,
+        Err(e) => {
+            error!("lofty::read_from_path failed {:?}", e);
+            return call_original!(this);
+        }
+    };
+
+    let tag = tagged_file.primary_tag();
+    match tag {
+        Some(tag) => {
+            match tag.get(&ItemKey::MusicBrainzRecordingId) {
+                Some(item) => match item.value() {
+                    ItemValue::Text(mbid) => {
+                        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+                        global_data.current_mbid = Some(mbid.to_string());
+                        info!("Recording MBID tag found: {:?}", mbid);
+                    }
+                    _ => {
+                        error!("Recording MBID tag is an invalid data type...?");
+                    }
+                },
+                _ => {
+                    debug!("File has no recording MBID");
                 }
             };
 
-            let tag = tagged_file.primary_tag();
-            match tag {
-                Some(tag) => {
-                    match tag.get(&ItemKey::MusicBrainzRecordingId) {
-                        Some(item) => match item.value() {
-                            ItemValue::Text(mbid) => {
-                                let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-                                global_data.current_mbid = Some(mbid.to_string());
-                                info!("Recording MBID tag found: {:?}", mbid);
-                            }
-                            _ => {
-                                error!("Recording MBID tag is an invalid data type...?");
-                            }
-                        },
-                        _ => {
-                            debug!("File has no recording MBID");
-                        }
-                    };
-
-                    match tag.get(&ItemKey::MusicBrainzReleaseId) {
-                        Some(item) => match item.value() {
-                            ItemValue::Text(mbid) => {
-                                let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-                                global_data.current_release_mbid = Some(mbid.to_string());
-                                info!("Release MBID tag found: {:?}", mbid);
-                            }
-                            _ => {
-                                error!("Release MBID tag is an invalid data type...?");
-                            }
-                        },
-                        _ => {
-                            debug!("File has no release MBID");
-                        }
-                    };
+            match tag.get(&ItemKey::MusicBrainzReleaseId) {
+                Some(item) => match item.value() {
+                    ItemValue::Text(mbid) => {
+                        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+                        global_data.current_release_mbid = Some(mbid.to_string());
+                        info!("Release MBID tag found: {:?}", mbid);
+                    }
+                    _ => {
+                        error!("Release MBID tag is an invalid data type...?");
+                    }
+                },
+                _ => {
+                    debug!("File has no release MBID");
                 }
-                None => {
-                    debug!("File has no tags");
-                }
-            }
+            };
+        }
+        None => {
+            debug!("File has no tags");
         }
     }
 
-    call_original!(mem, file, offset, length, flags)
+    call_original!(this);
 }
 
 #[crochet::hook(compile_check, "Wininet.dll", "HttpSendRequestA")]
@@ -173,7 +169,18 @@ unsafe fn send_hook(
 
     if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some()
     {
+        debug!("Sending fetchsongid_unicode request");
         data.set_one("ticket", global_data.ticket.as_ref().unwrap());
+        if global_data.current_mbid.is_some() {
+            data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
+        }
+        if global_data.current_release_mbid.is_some() {
+            data.set_one(
+                "releasembid",
+                global_data.current_release_mbid.as_ref().unwrap(),
+            );
+        }
+        data.set_one("wvbrclientversion", env!("CARGO_PKG_VERSION"));
         let new_data_string = data.to_string_of_original_order();
 
         // allocate new string
@@ -190,6 +197,7 @@ unsafe fn send_hook(
     if url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
         && global_data.current_mbid.is_some()
     {
+        debug!("Sending SendRideSteamVerified request");
         data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
         if global_data.current_release_mbid.is_some() {
             data.set_one(
@@ -280,16 +288,6 @@ unsafe fn openrequest_hook(
     }
     debug!("new OpenRequest flags: {:?}", flags);
 
-    // reset MBIDs when a new song is loaded
-    // a bit hacky, but we have to do this so we don't submit an old ID when someone starts playing a Radio song
-    // Radio mode songs are loaded via memory so trying to see what file it loads the song from won't work
-    // We could just look at the song it loaded into memory, but the MBID doesn't matter for Radio songs anyway
-    if object_name.to_string().unwrap() == "/as_steamlogin/game_fetchsongid_unicode.php" {
-        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-        global_data.current_mbid = None;
-        global_data.current_release_mbid = None;
-    }
-
     call_original!(
         hconnect,
         verb,
@@ -364,20 +362,13 @@ fn rewrite_server(server: &str) -> String {
     }
 }
 
-unsafe fn u16_ptr_to_string(ptr: *const u16) -> OsString {
-    let len = (0..).take_while(|&i| *ptr.offset(i) != 0).count();
-    let slice = std::slice::from_raw_parts(ptr, len);
-
-    OsString::from_wide(slice)
-}
-
 pub fn init_hooks() -> anyhow::Result<()> {
     crochet::enable!(connect_hook)?;
     crochet::enable!(openrequest_hook)?;
     crochet::enable!(gettargetserver_unicode_hook)?;
     crochet::enable!(gettargetserver_hook)?;
     crochet::enable!(send_hook)?;
-    crochet::enable!(songfilestream_hook)?;
+    crochet::enable!(precalcsong_call_hook)?;
 
     Ok(())
 }
@@ -388,7 +379,7 @@ pub fn deinit_hooks() -> anyhow::Result<()> {
     crochet::disable!(gettargetserver_unicode_hook)?;
     crochet::disable!(gettargetserver_hook)?;
     crochet::disable!(send_hook)?;
-    crochet::disable!(songfilestream_hook)?;
+    crochet::disable!(precalcsong_call_hook)?;
 
     Ok(())
 }

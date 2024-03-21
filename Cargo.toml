@@ -17,7 +17,7 @@ features = [
     "Win32_System_LibraryLoader",
     "Win32_System_Threading",
     "Win32_Security",
-    "Win32_Networking_WinInet"
+    "Win32_Networking_WinInet",
 ]
 
 [dependencies]
@@ -30,3 +30,6 @@ figment = { version = "0.*", features = ["toml", "env"] }
 crochet = "0.2.3"
 lofty = "0.18.2"
 url_encoded_data = "0.6.1"
+
+[build-dependencies]
+bindgen = "0.69.4"
