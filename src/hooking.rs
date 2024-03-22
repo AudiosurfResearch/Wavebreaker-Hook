@@ -12,6 +12,7 @@ use lofty::TaggedFileExt;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
+use tracing::trace;
 use url_encoded_data::UrlEncodedData;
 use windows::core::PCSTR;
 use windows::Win32::Networking::WinInet::InternetQueryOptionA;
@@ -35,6 +36,8 @@ unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
         .unwrap()
         .channelFloat_;
 
+    debug!("PreCalc with source {}", song_source);
+
     // 0 = File
     // 1 = CD
     // 2 = Buffer
@@ -49,6 +52,8 @@ unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
         .to_str()
         .unwrap();
     let song_path = Path::new(&song_path);
+
+    debug!("PreCalc from file path: {}", song_path.display());
 
     let tagged_file = match lofty::read_from_path(song_path) {
         Ok(res) => res,
@@ -110,7 +115,7 @@ unsafe fn send_hook(
     optional_len: u32,
 ) -> c_int {
     if optional.is_null() || optional_len == 0 {
-        debug!(
+        trace!(
             "send_hook called without data {:?}",
             CString::from_vec_unchecked(headers.as_bytes().to_vec()),
         );
@@ -210,7 +215,7 @@ unsafe fn connect_hook(
     flags: u32,
     context: usize,
 ) -> c_int {
-    debug!(
+    trace!(
         "connect_hook called: {:?} {:?}",
         CString::from_vec_unchecked(server_name.as_bytes().to_vec()),
         port
@@ -245,7 +250,7 @@ unsafe fn openrequest_hook(
     mut flags: u32,
     context: usize,
 ) -> c_int {
-    debug!(
+    trace!(
         "openrequest_hook called: {:?} {:?} {:?}",
         verb.to_string().unwrap(),
         object_name.to_string().unwrap(),
@@ -282,11 +287,11 @@ unsafe fn openrequest_hook(
     "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ"
 )]
 unsafe extern "thiscall" fn gettargetserver_unicode_hook(this_ptr: c_int) -> *const c_char {
-    debug!("gettargetserver_unicode_hook called: {:?}", this_ptr);
+    trace!("gettargetserver_unicode_hook called: {:?}", this_ptr);
 
     let orig_result = call_original!(this_ptr);
     let c_str = CStr::from_ptr(orig_result);
-    debug!(
+    trace!(
         "gettargetserver_unicode_hook original result: {:?}",
         c_str.to_str()
     );
@@ -302,11 +307,11 @@ unsafe extern "thiscall" fn gettargetserver_unicode_hook(this_ptr: c_int) -> *co
     "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ"
 )]
 unsafe extern "thiscall" fn gettargetserver_hook(this_ptr: c_int) -> *const c_char {
-    debug!("gettargetserver_hook called: {:?}", this_ptr);
+    trace!("gettargetserver_hook called: {:?}", this_ptr);
 
     let orig_result = call_original!(this_ptr);
     let c_str = CStr::from_ptr(orig_result);
-    debug!("gettargetserver_hook original result: {:?}", c_str.to_str());
+    trace!("gettargetserver_hook original result: {:?}", c_str.to_str());
 
     let new_str = rewrite_server(c_str.to_str().unwrap());
     debug!("Server rewritten to: {:?}", &new_str);
