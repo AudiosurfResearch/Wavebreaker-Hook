@@ -139,7 +139,7 @@ unsafe fn send_hook(
         CString::from_vec_unchecked(headers.as_bytes().to_vec()),
         data
     );
-    let mut form_data = UrlEncodedData::parse_str(data);
+    let form_data = UrlEncodedData::parse_str(data);
     let mut new_form_data = form_data.clone();
 
     let mut global_data = state::GLOBAL_DATA.lock().unwrap();
@@ -166,16 +166,16 @@ unsafe fn send_hook(
 
     // Add Steam auth ticket when fetching song ID
     if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some() {
-        form_data.set_one("ticket", global_data.ticket.as_ref().unwrap());
+        new_form_data.set_one("ticket", global_data.ticket.as_ref().unwrap());
     }
 
     // Add recording and release MBIDs (if present), when fetching song ID and submitting a score
     if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php") {
         if global_data.current_mbid.is_some() {
-            form_data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
+            new_form_data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
         }
         if global_data.current_release_mbid.is_some() {
-            form_data.set_one(
+            new_form_data.set_one(
                 "releasembid",
                 global_data.current_release_mbid.as_ref().unwrap(),
             );
