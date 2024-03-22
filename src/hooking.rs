@@ -139,87 +139,64 @@ unsafe fn send_hook(
         CString::from_vec_unchecked(headers.as_bytes().to_vec()),
         data
     );
-    let mut data = UrlEncodedData::parse_str(data);
+    let mut form_data = UrlEncodedData::parse_str(data);
+    let mut new_form_data = form_data.clone();
 
     let mut global_data = state::GLOBAL_DATA.lock().unwrap();
 
     // store ticket for our own uses
-    if data.exists("ticket") && global_data.ticket.is_none() {
-        let ticket = data.get_first("ticket").unwrap();
+    if form_data.exists("ticket") && global_data.ticket.is_none() {
+        let ticket = form_data.get_first("ticket").unwrap();
         global_data.ticket = Some(ticket.to_string());
         debug!("Ticket found in data: {:?}", ticket);
     }
 
-    if url.ends_with("/as_steamlogin/game_AttemptLoginSteamVerified.php")
+    // Add client version when:
+    // - fetching song ID
+    // - attempting to login
+    // - fetching custom news
+    // - submitting a score
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php")
+        || url.ends_with("/as_steamlogin/game_AttemptLoginSteamVerified.php")
         || url.ends_with("//as_steamlogin/game_CustomNews.php")
+        || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
     {
-        data.set_one("wvbrclientversion", env!("CARGO_PKG_VERSION"));
-        let new_data_string = data.to_string_of_original_order();
-
-        // allocate new string
-        let new_data = malloc_c_string(&new_data_string) as *mut c_void;
-        return call_original!(
-            hrequest,
-            headers,
-            headers_len,
-            new_data,
-            new_data_string.len() as u32
-        );
+        new_form_data.set_one("wvbrclientversion", env!("CARGO_PKG_VERSION"));
     }
 
-    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some()
-    {
-        debug!("Sending fetchsongid_unicode request");
-        data.set_one("ticket", global_data.ticket.as_ref().unwrap());
+    // Add Steam auth ticket when fetching song ID
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some() {
+        form_data.set_one("ticket", global_data.ticket.as_ref().unwrap());
+    }
+
+    // Add recording and release MBIDs (if present), when fetching song ID and submitting a score
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php") {
         if global_data.current_mbid.is_some() {
-            data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
+            form_data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
         }
         if global_data.current_release_mbid.is_some() {
-            data.set_one(
+            form_data.set_one(
                 "releasembid",
                 global_data.current_release_mbid.as_ref().unwrap(),
             );
         }
-        data.set_one("wvbrclientversion", env!("CARGO_PKG_VERSION"));
-        let new_data_string = data.to_string_of_original_order();
+    }
 
-        // allocate new string
-        let new_data = malloc_c_string(&new_data_string) as *mut c_void;
-        return call_original!(
+    // if nothing changed, we don't need to allocate a new string
+    if new_form_data.to_string_of_original_order() == form_data.to_string_of_original_order() {
+        call_original!(hrequest, headers, headers_len, optional, optional_len)
+    } else {
+        let new_data_string = new_form_data.to_string_of_original_order();
+        let new_data = malloc_c_string(&new_data_string) as *mut c_void; // allocate new string
+
+        call_original!(
             hrequest,
             headers,
             headers_len,
             new_data,
             new_data_string.len() as u32
-        );
+        )
     }
-
-    if url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
-        && global_data.current_mbid.is_some()
-    {
-        debug!("Sending SendRideSteamVerified request");
-        data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
-        if global_data.current_release_mbid.is_some() {
-            data.set_one(
-                "releasembid",
-                global_data.current_release_mbid.as_ref().unwrap(),
-            );
-        }
-        let new_data_string = data.to_string_of_original_order();
-        debug!("New score submission form data: {:?}", new_data_string);
-
-        // allocate new string
-        let new_data = malloc_c_string(&new_data_string) as *mut c_void;
-        return call_original!(
-            hrequest,
-            headers,
-            headers_len,
-            new_data,
-            new_data_string.len() as u32
-        );
-    }
-
-    call_original!(hrequest, headers, headers_len, optional, optional_len)
 }
 
 #[crochet::hook(compile_check, "Wininet.dll", "InternetConnectA")]
