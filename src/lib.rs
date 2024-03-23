@@ -1,30 +1,31 @@
-mod q3d_bindings;
 mod config;
 mod hooking;
+mod q3d_bindings;
 mod state;
+
+use std::{
+    ffi::{c_void, CString},
+    thread,
+};
 
 use config::Config;
 use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use std::ffi::{c_void, CString};
-use std::thread;
 use tracing::{error, info};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, layer::SubscriberExt};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use windows::{
     core::{s, PCSTR, PCWSTR},
     Win32::{
         Foundation::{BOOL, HMODULE, HWND, TRUE},
-        System::SystemServices::DLL_PROCESS_ATTACH,
         System::{
             LibraryLoader::{
                 DisableThreadLibraryCalls, GetModuleHandleA, GetModuleHandleExW,
                 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
             },
-            SystemServices::DLL_PROCESS_DETACH,
+            SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
         },
         UI::WindowsAndMessaging::{MessageBoxA, MB_ICONERROR, MB_OK},
     },

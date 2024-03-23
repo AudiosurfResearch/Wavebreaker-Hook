@@ -1,30 +1,24 @@
-use std::ffi::c_char;
-use std::ffi::c_int;
-use std::ffi::c_void;
-use std::ffi::CStr;
-use std::ffi::CString;
-use std::mem;
-use std::path::Path;
+use std::{
+    ffi::{c_char, c_int, c_void, CStr, CString},
+    mem,
+    path::Path,
+};
 
-use lofty::ItemKey;
-use lofty::ItemValue;
-use lofty::TaggedFileExt;
-use tracing::debug;
-use tracing::error;
-use tracing::info;
-use tracing::trace;
+use lofty::{ItemKey, ItemValue, TaggedFileExt};
+use tracing::{debug, error, info, trace};
 use url_encoded_data::UrlEncodedData;
-use windows::core::PCSTR;
-use windows::Win32::Networking::WinInet::InternetQueryOptionA;
-use windows::Win32::Networking::WinInet::INTERNET_FLAG_RELOAD;
-use windows::Win32::Networking::WinInet::INTERNET_FLAG_SECURE;
-use windows::Win32::Networking::WinInet::INTERNET_OPTION_URL;
+use windows::{
+    core::PCSTR,
+    Win32::Networking::WinInet::{
+        InternetQueryOptionA, INTERNET_FLAG_RELOAD, INTERNET_FLAG_SECURE, INTERNET_OPTION_URL,
+    },
+};
 
-use crate::config::CONFIG;
-use crate::q3d_bindings::A3d_Channel;
-use crate::q3d_bindings::Aco_FloatChannel;
-use crate::q3d_bindings::Aco_StringChannel_GetString;
-use crate::state;
+use crate::{
+    config::CONFIG,
+    q3d_bindings::{A3d_Channel, Aco_FloatChannel, Aco_StringChannel_GetString},
+    state,
+};
 
 #[crochet::hook("BASS_PreCalcSong.dll", "?CallChannel@Aco_BASS_PreCalcSong@@UAEXXZ")]
 unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
@@ -139,7 +133,7 @@ unsafe fn send_hook(
     //with length and pointer, read the optional data
     let data = std::slice::from_raw_parts(optional as *const u8, optional_len as usize);
     let data = std::str::from_utf8(data).unwrap();
-    debug!(
+    trace!(
         "send_hook called: {:?} {:?}",
         CString::from_vec_unchecked(headers.as_bytes().to_vec()),
         data
@@ -170,12 +164,15 @@ unsafe fn send_hook(
     }
 
     // Add Steam auth ticket when fetching song ID
-    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some() {
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some()
+    {
         new_form_data.set_one("ticket", global_data.ticket.as_ref().unwrap());
     }
 
     // Add recording and release MBIDs (if present), when fetching song ID and submitting a score
-    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php") {
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php")
+        || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
+    {
         if global_data.current_mbid.is_some() {
             new_form_data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
         }
