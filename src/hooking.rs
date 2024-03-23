@@ -32,19 +32,25 @@ unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
 
     debug!("PreCalc with source {}", song_source);
 
+    let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+    global_data.current_mbid = None;
+    global_data.current_release_mbid = None;
+
     // 0 = File
     // 1 = CD
     // 2 = Buffer
     if song_source != 0.0 {
-        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-        global_data.current_mbid = None;
-        global_data.current_release_mbid = None;
         return call_original!(this);
     }
 
-    let song_path = CStr::from_ptr(Aco_StringChannel_GetString(channel.GetChild(4).cast()))
-        .to_str()
-        .unwrap();
+    let song_path =
+        match CStr::from_ptr(Aco_StringChannel_GetString(channel.GetChild(4).cast())).to_str() {
+            Ok(path) => path,
+            Err(err) => {
+                error!("Failed to get song path: {:?}", err);
+                return call_original!(this);
+            }
+        };
     let song_path = Path::new(&song_path);
 
     debug!("PreCalc from file path: {}", song_path.display());
