@@ -46,9 +46,12 @@ unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
 
     debug!("PreCalc with source {}", song_source);
 
-    let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-    global_data.current_mbid = None;
-    global_data.current_release_mbid = None;
+    // Seperate scope to unlock mutex sooner
+    {
+        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+        global_data.current_mbid = None;
+        global_data.current_release_mbid = None;
+    }
 
     // 0 = File
     // 1 = CD
