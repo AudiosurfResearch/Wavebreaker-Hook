@@ -1,6 +1,7 @@
 use std::{
-    ffi::{c_char, c_int, c_void, CStr, CString},
+    ffi::{c_char, c_int, c_void, CStr, CString, OsString},
     mem,
+    os::windows::ffi::OsStringExt,
     path::Path,
 };
 
@@ -8,20 +9,37 @@ use lofty::{ItemKey, ItemValue, TaggedFileExt};
 use tracing::{debug, error, info, trace};
 use url_encoded_data::UrlEncodedData;
 use windows::{
-    core::PCSTR,
-    Win32::Networking::WinInet::{
-        InternetQueryOptionA, INTERNET_FLAG_RELOAD, INTERNET_FLAG_SECURE, INTERNET_OPTION_URL,
+    core::{s, PCSTR},
+    Win32::{
+        Networking::WinInet::{
+            InternetQueryOptionA, INTERNET_FLAG_RELOAD, INTERNET_FLAG_SECURE, INTERNET_OPTION_URL,
+        },
+        System::LibraryLoader::GetModuleHandleA,
     },
 };
 
 use crate::{
     config::CONFIG,
-    q3d_bindings::{A3d_Channel, Aco_FloatChannel, Aco_StringChannel_GetString},
+    q3d_bindings::{
+        A3d_Channel, A3d_ChannelGroup_GetGroupIndex, Aco_FloatChannel, Aco_StringChannel,
+        Aco_StringChannel_GetString, Aco_StringChannel_WS2AS,
+    },
     state,
 };
 
+// from https://stackoverflow.com/a/48587463
+// credit to Boiethios
+unsafe fn u16_ptr_to_string(ptr: *const u16) -> OsString {
+    let len = (0..).take_while(|&i| *ptr.offset(i) != 0).count();
+    let slice = std::slice::from_raw_parts(ptr, len);
+
+    OsString::from_wide(slice)
+}
+
 #[crochet::hook("BASS_PreCalcSong.dll", "?CallChannel@Aco_BASS_PreCalcSong@@UAEXXZ")]
 unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
+    call_original!(this);
+
     let channel = this.as_mut().unwrap();
     let song_source = channel
         .GetChild(1)
@@ -39,71 +57,7 @@ unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
     // 0 = File
     // 1 = CD
     // 2 = Buffer
-    if song_source != 0.0 {
-        return call_original!(this);
-    }
-
-    let song_path =
-        match CStr::from_ptr(Aco_StringChannel_GetString(channel.GetChild(4).cast())).to_str() {
-            Ok(path) => path,
-            Err(err) => {
-                error!("Failed to get song path: {:?}", err);
-                return call_original!(this);
-            }
-        };
-    let song_path = Path::new(&song_path);
-
-    debug!("PreCalc from file path: {}", song_path.display());
-
-    let tagged_file = match lofty::read_from_path(song_path) {
-        Ok(res) => res,
-        Err(e) => {
-            error!("lofty::read_from_path failed {:?}", e);
-            return call_original!(this);
-        }
-    };
-
-    let tag = tagged_file.primary_tag();
-    match tag {
-        Some(tag) => {
-            match tag.get(&ItemKey::MusicBrainzRecordingId) {
-                Some(item) => match item.value() {
-                    ItemValue::Text(mbid) => {
-                        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-                        global_data.current_mbid = Some(mbid.to_string());
-                        info!("Recording MBID tag found: {:?}", mbid);
-                    }
-                    _ => {
-                        error!("Recording MBID tag is an invalid data type...?");
-                    }
-                },
-                _ => {
-                    debug!("File has no recording MBID");
-                }
-            };
-
-            match tag.get(&ItemKey::MusicBrainzReleaseId) {
-                Some(item) => match item.value() {
-                    ItemValue::Text(mbid) => {
-                        let mut global_data = state::GLOBAL_DATA.lock().unwrap();
-                        global_data.current_release_mbid = Some(mbid.to_string());
-                        info!("Release MBID tag found: {:?}", mbid);
-                    }
-                    _ => {
-                        error!("Release MBID tag is an invalid data type...?");
-                    }
-                },
-                _ => {
-                    debug!("File has no release MBID");
-                }
-            };
-        }
-        None => {
-            debug!("File has no tags");
-        }
-    }
-
-    call_original!(this);
+    global_data.song_source = Some(song_source);
 }
 
 #[crochet::hook(compile_check, "Wininet.dll", "HttpSendRequestA")]
@@ -176,9 +130,84 @@ unsafe fn send_hook(
     }
 
     // Add recording and release MBIDs (if present), when fetching song ID and submitting a score
-    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php")
-        || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
+    if (url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php")
+        || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php"))
+        && global_data.song_source.is_some()
+        && global_data.song_source.unwrap() == 0.0
     {
+        let module_base = GetModuleHandleA(s!("bass.dll")).unwrap().0 as *mut c_void;
+        debug!("BASS module base: {:?}", module_base);
+        let module_base = module_base.add(0x000351B4);
+        debug!("Offset 0: {:?}", module_base);
+        let offset_1 = *(module_base as *const u32) as *mut c_void;
+        debug!("Offset 1: {:?}", offset_1);
+        let offset_2 = *(offset_1 as *const u32) as *mut c_void;
+        debug!("Offset 2: {:?}", offset_2);
+        let offset_3 = offset_2.add(0x90);
+        let offset_3 = *(offset_3 as *const u32) as *mut c_void;
+        debug!("Offset 3: {:?}", offset_3);
+        let offset_4 = offset_3.add(0x44);
+        let offset_4 = *(offset_4 as *const u32) as *mut c_void;
+        debug!("Final: {:?}", offset_4);
+        let path_from_ptr = u16_ptr_to_string(offset_4.cast());
+        match path_from_ptr.to_str() {
+            Some(path) => {
+                debug!("Path from ptr: {:?}", path);
+                path
+            }
+            None => {
+                error!("Failed to get song path from ptr");
+                ""
+            }
+        };
+
+        match lofty::read_from_path(path_from_ptr) {
+            Ok(res) => {
+                let tag = res.primary_tag();
+                match tag {
+                    Some(tag) => {
+                        match tag.get(&ItemKey::MusicBrainzRecordingId) {
+                            Some(item) => match item.value() {
+                                ItemValue::Text(mbid) => {
+                                    let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+                                    global_data.current_mbid = Some(mbid.to_string());
+                                    info!("Recording MBID tag found: {:?}", mbid);
+                                }
+                                _ => {
+                                    error!("Recording MBID tag is an invalid data type...?");
+                                }
+                            },
+                            _ => {
+                                debug!("File has no recording MBID");
+                            }
+                        };
+
+                        match tag.get(&ItemKey::MusicBrainzReleaseId) {
+                            Some(item) => match item.value() {
+                                ItemValue::Text(mbid) => {
+                                    let mut global_data = state::GLOBAL_DATA.lock().unwrap();
+                                    global_data.current_release_mbid = Some(mbid.to_string());
+                                    info!("Release MBID tag found: {:?}", mbid);
+                                }
+                                _ => {
+                                    error!("Release MBID tag is an invalid data type...?");
+                                }
+                            },
+                            _ => {
+                                debug!("File has no release MBID");
+                            }
+                        };
+                    }
+                    None => {
+                        debug!("File has no tags");
+                    }
+                }
+            }
+            Err(e) => {
+                error!("lofty::read_from_path failed {:?}", e);
+            }
+        };
+
         if global_data.current_mbid.is_some() {
             new_form_data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
         }

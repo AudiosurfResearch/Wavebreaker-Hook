@@ -58,6 +58,7 @@ unsafe fn main() -> anyhow::Result<()> {
         || GetModuleHandleA(s!("HTTP_Fetch_Unicode.dll")).is_err()
         || GetModuleHandleA(s!("bass.dll")).is_err()
         || GetModuleHandleA(s!("BASS_PreCalcSong.dll")).is_err()
+        || GetModuleHandleA(s!("GetFileAttributes.dll")).is_err()
     {
         thread::sleep(std::time::Duration::from_millis(150));
     }
