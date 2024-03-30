@@ -198,23 +198,21 @@ unsafe fn send_hook(
     }
 
     // Add Steam auth ticket when fetching song ID
-    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") && global_data.ticket.is_some()
-    {
-        new_form_data.set_one("ticket", global_data.ticket.as_ref().unwrap());
+    if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php") {
+        if let Some(ticket) = &global_data.ticket {
+            new_form_data.set_one("ticket", ticket);
+        }
     }
 
     // Add recording and release MBIDs (if present), when fetching song ID and submitting a score
     if url.ends_with("/as_steamlogin/game_fetchsongid_unicode.php")
         || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
     {
-        if global_data.current_mbid.is_some() {
-            new_form_data.set_one("mbid", global_data.current_mbid.as_ref().unwrap());
+        if let Some(mbid) = &global_data.current_mbid {
+            new_form_data.set_one("mbid", mbid);
         }
-        if global_data.current_release_mbid.is_some() {
-            new_form_data.set_one(
-                "releasembid",
-                global_data.current_release_mbid.as_ref().unwrap(),
-            );
+        if let Some(release_mbid) = &global_data.current_release_mbid {
+            new_form_data.set_one("releasembid", release_mbid);
         }
     }
 
