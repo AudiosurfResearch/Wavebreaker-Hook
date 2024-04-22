@@ -18,6 +18,8 @@ features = [
     "Win32_System_Threading",
     "Win32_Security",
     "Win32_Networking_WinInet",
+    "Win32_UI_Controls",
+    "Win32_UI_Controls_Dialogs",
 ]
 
 [dependencies]
@@ -28,8 +30,10 @@ tracing-appender = "0.*"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 figment = { version = "0.*", features = ["toml", "env"] }
 crochet = "0.2.3"
-lofty = "0.18.2"
+lofty = "0.19.0"
 url_encoded_data = "0.6.1"
+bass-sys = "2.3.0"
+rfd = "0.14.1"
 
 [build-dependencies]
 bindgen = "0.69.4"

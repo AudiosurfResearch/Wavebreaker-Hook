@@ -13,7 +13,8 @@ use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use tracing::{error, info};
+use bass_sys::{BASS_ErrorGetCode, BASS_PluginLoad};
+use tracing::{debug, error, info};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use windows::{
@@ -59,11 +60,19 @@ unsafe fn main() -> anyhow::Result<()> {
         || GetModuleHandleA(s!("bass.dll")).is_err()
         || GetModuleHandleA(s!("BASS_PreCalcSong.dll")).is_err()
         || GetModuleHandleA(s!("GetFileAttributes.dll")).is_err()
+        || GetModuleHandleA(s!("comdlg32.dll")).is_err()
+        || GetModuleHandleA(s!("FolderExploder.dll")).is_err()
     {
         thread::sleep(std::time::Duration::from_millis(150));
     }
     info!("Necessary DLLs loaded, attaching hooks");
     init_hooks()?;
+
+    info!("Loading Opus BASS plugin");
+    let opus_plugin_name = CString::new("bassopus").unwrap();
+    let plugin_handle: *const () = BASS_PluginLoad(opus_plugin_name.as_ptr().cast(), 0) as *const ();
+    debug!("BASSOPUS handle: {:p}", plugin_handle);
+    debug!("BASS error code: {:?}", BASS_ErrorGetCode());
 
     loop {
         thread::sleep(std::time::Duration::from_millis(100));

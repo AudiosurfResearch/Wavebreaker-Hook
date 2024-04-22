@@ -4,22 +4,26 @@ use std::{
     os::windows::ffi::OsStringExt,
 };
 
-use lofty::{ItemKey, ItemValue, TaggedFileExt};
+use lofty::{prelude::*, tag::ItemValue};
 use tracing::{debug, error, info, trace};
 use url_encoded_data::UrlEncodedData;
 use windows::{
-    core::{s, PCSTR},
+    core::{s, PCSTR, PSTR},
     Win32::{
         Networking::WinInet::{
             InternetQueryOptionA, INTERNET_FLAG_RELOAD, INTERNET_FLAG_SECURE, INTERNET_OPTION_URL,
         },
         System::LibraryLoader::GetModuleHandleA,
+        UI::Controls::Dialogs::OPENFILENAMEA,
     },
 };
 
 use crate::{
     config::CONFIG,
-    q3d_bindings::{A3d_Channel, Aco_FloatChannel},
+    q3d_bindings::{
+        A3d_Channel, Aco_FloatChannel, Aco_StringChannel, Aco_StringChannel_GetString,
+        Aco_StringChannel_SetString,
+    },
     state,
 };
 
@@ -348,6 +352,58 @@ unsafe extern "thiscall" fn gettargetserver_hook(this_ptr: c_int) -> *const c_ch
     malloc_c_string(&new_str) as *const c_char
 }
 
+#[crochet::hook("FolderExploder.dll", "?CallChannel@FolderExploder@@UAEXXZ")]
+unsafe extern "thiscall" fn call_folderexploder_hook(this: *mut A3d_Channel) {
+    trace!("call_folderexploder_hook called");
+    let channel = this.as_mut().unwrap();
+
+    let filters_channel = channel.GetChild(7).cast::<Aco_StringChannel>();
+    let filters = CStr::from_ptr(Aco_StringChannel_GetString(filters_channel.cast()))
+        .to_str()
+        .unwrap();
+    if !filters.contains("opus") {
+        debug!("Adding opus to FolderExploder filters");
+        Aco_StringChannel_SetString(
+            filters_channel.cast(),
+            malloc_c_string(&(filters.to_owned() + ",opus")).cast(),
+        );
+    }
+
+    call_original!(this);
+}
+
+#[crochet::hook("comdlg32.dll", "GetOpenFileNameA")]
+unsafe fn getopenfilename_hook(param: *mut OPENFILENAMEA) -> i32 {
+    trace!("getopenfilename_hook called");
+
+    let param = param.as_mut().unwrap();
+    let filter = param.lpstrFilter;
+    let filter = filter.to_string().unwrap();
+    let mut filter: Vec<&str> = filter.split(", ").collect();
+    //arbitrary way to check if the filter is for audio files
+    if filter.contains(&"mp3") && filter.contains(&"flac") {
+        filter.push("opus");
+    }
+
+    let path = rfd::FileDialog::new()
+        .set_title("File dialog (hooked)")
+        .add_filter("Supported files", &filter)
+        .pick_file();
+
+    match path {
+        Some(path) => {
+            debug!("Selected file: {:?}", path);
+            let path_ptr = malloc_c_string(path.to_str().unwrap());
+            param.lpstrFile = PSTR(path_ptr.cast());
+            1
+        }
+        None => {
+            debug!("No file selected");
+            0
+        }
+    }
+}
+
 unsafe fn malloc_c_string(s: &str) -> *mut () {
     // this is an absolute meme
     let c_str = CString::new(s).unwrap();
@@ -380,6 +436,8 @@ pub fn init_hooks() -> anyhow::Result<()> {
     crochet::enable!(gettargetserver_hook)?;
     crochet::enable!(send_hook)?;
     crochet::enable!(precalcsong_call_hook)?;
+    crochet::enable!(getopenfilename_hook)?;
+    crochet::enable!(call_folderexploder_hook)?;
 
     Ok(())
 }
@@ -391,6 +449,8 @@ pub fn deinit_hooks() -> anyhow::Result<()> {
     crochet::disable!(gettargetserver_hook)?;
     crochet::disable!(send_hook)?;
     crochet::disable!(precalcsong_call_hook)?;
+    crochet::disable!(getopenfilename_hook)?;
+    crochet::disable!(call_folderexploder_hook)?;
 
     Ok(())
 }
