@@ -1,0 +1,39 @@
+[package]
+name = "wavebreaker_client"
+version = "3.2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies.windows]
+version = "0.*"
+features = [
+    "Win32_Foundation",
+    "Win32_System_SystemServices",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_Security",
+    "Win32_Networking_WinInet",
+    "Win32_UI_Controls",
+    "Win32_UI_Controls_Dialogs",
+]
+
+[dependencies]
+anyhow = "1.*"
+serde = { version = "1.0.196", features = ["derive"] }
+tracing = "0.*"
+tracing-appender = "0.*"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+figment = { version = "0.*", features = ["toml", "env"] }
+crochet = "0.2.3"
+lofty = "0.19.0"
+url_encoded_data = "0.6.1"
+bass-sys = "2.3.0"
+rfd = "0.14.1"
+
+[build-dependencies]
+bindgen = "0.69.4"

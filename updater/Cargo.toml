@@ -1,0 +1,17 @@
+[package]
+name = "wavebreaker_up"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.27.2"
+catppuccin-egui = { version = "5.1", default-features = false, features = [
+    "egui27",
+] }
+octocrab = "0.38.0"
+pollster = "0.3.0"
+tokio = { version = "1.37.0", features = ["full"] }
+anyhow = "1.0.82"
+env_logger = "0.11.3"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = "0.1.40"
