@@ -1,13 +1,12 @@
-use std::sync::{Arc, Once};
+use std::{borrow::Cow, io::Cursor, path::Path};
 
-use anyhow::Context;
+use anyhow::{anyhow, bail, Context};
 use eframe::egui::{
-    self, Align, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2,
-    ViewportBuilder,
+    self, Align, FontData, FontDefinitions, FontFamily, IconData, Layout, ProgressBar, RichText, Vec2, ViewportBuilder
 };
-use octocrab::{models::repos::Release, Octocrab};
-use pollster::FutureExt as _;
-use tracing::debug;
+use lazy_async_promise::{
+    ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm, StringStatus,
+};
 
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
@@ -16,11 +15,14 @@ async fn main() -> eframe::Result<()> {
         .with_env_filter("wavebreaker_up=debug")
         .init();
 
-    let viewport_options = ViewportBuilder::default()
-        .with_title("Wavebreaker Updater")
-        .with_resizable(false)
-        .with_inner_size(Vec2::new(650.0, 100.0))
-        .with_maximize_button(false);
+    let viewport_options = ViewportBuilder {
+        title: Some("Wavebreaker Updater".to_owned()),
+        inner_size: Some(Vec2::new(650.0, 100.0)),
+        resizable: Some(false),
+        maximize_button: Some(false),
+        icon: None,
+        ..Default::default()
+    };
 
     let native_options = eframe::NativeOptions {
         viewport: viewport_options,
@@ -36,9 +38,7 @@ async fn main() -> eframe::Result<()> {
 }
 
 struct MyEguiApp {
-    octocrab: Arc<Octocrab>,
-    current_release: anyhow::Result<Release>,
-    progress: f32,
+    update_task: ProgressTrackedImValProm<(), Cow<'static, str>>,
 }
 
 impl MyEguiApp {
@@ -73,18 +73,67 @@ impl MyEguiApp {
 
         catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MACCHIATO);
 
-        let octocrab = octocrab::instance();
-        let repo = octocrab.repos("AudiosurfResearch", "Wavebreaker-Hook");
-
         Self {
-            octocrab: octocrab::instance(),
-            current_release: repo
-                .releases()
-                .get_latest()
-                .block_on()
-                .context("Failed to get latest release from repo"),
-            progress: 0.0,
+            update_task: Self::run_update(),
         }
+    }
+
+    fn run_update() -> ProgressTrackedImValProm<(), Cow<'static, str>> {
+        ProgressTrackedImValProm::new(
+            |s| {
+                ImmediateValuePromise::new(async move {
+                    //Start with getting the latest release of the hook
+                    s.send(StringStatus::new(
+                        Progress::from_percent(0),
+                        "Getting release from GitHub".into(),
+                    ))
+                    .await
+                    .unwrap();
+                    let octocrab = octocrab::instance();
+                    let repo = octocrab.repos("AudiosurfResearch", "Wavebreaker-Hook");
+                    let release = repo
+                        .releases()
+                        .get_latest()
+                        .await
+                        .context("Failed to get releases from repo")?;
+                    let release_asset_url = release
+                        .assets
+                        .iter()
+                        .find(|asset| asset.name == "Wavebreaker-Package.zip")
+                        .map(|asset| asset.browser_download_url.clone())
+                        .ok_or_else(|| anyhow!("Failed to find asset in latest release"))?;
+
+                    s.send(StringStatus::new(
+                        Progress::from_percent(20),
+                        format!("Grabbing {}", release_asset_url).into(),
+                    ))
+                    .await
+                    .unwrap();
+                    let response = reqwest::get(release_asset_url)
+                        .await
+                        .context("Failed to download release asset")?;
+                    let bytes = response
+                        .bytes()
+                        .await
+                        .context("Failed to get response bytes")?;
+
+                    s.send(StringStatus::new(
+                        Progress::from_percent(40),
+                        "Extracting files".into(),
+                    ))
+                    .await
+                    .unwrap();
+                    if !Path::new("./channels").exists() && !Path::new("./3rd").exists() {
+                        bail!("Invalid folder structure! Is this really the game's engine folder?");
+                    }
+                    zip_extract::extract(Cursor::new(bytes), Path::new("."), false)
+                        .context("Failed to extract zip")?;
+
+                    Ok(())
+                })
+            },
+            2000,
+        )
     }
 }
 
@@ -95,21 +144,33 @@ impl eframe::App for MyEguiApp {
                 Layout::top_down(Align::Center).with_cross_align(Align::Min),
                 |ui| {
                     ui.heading("Updating");
-                    ui.label("yuor'e computer will explosion");
+                    ui.label("Keep the game closed, wait for the update to finish and don't exit the updater.");
                     ui.add_space(10.0);
-                    ui.add(ProgressBar::new(self.progress).desired_height(12.0));
-                    match &self.current_release {
-                        Ok(release) => {
-                            ui.label(format!("Downloading {} from GitHub", release.tag_name));
-                            //TODO: how do i make things only run once? how do i handle state? what??
-                            debug!("Downloading from {}", asset.browser_download_url.to_string());
+                    let state = self.update_task.poll_state();
+                    match state {
+                        ImmediateValueState::Updating => {
+                            if let Some(status) = self.update_task.last_status() {
+                                ui.add(
+                                    ProgressBar::new(status.progress.as_f32()).desired_height(12.0),
+                                );
+                                ui.label(RichText::new(status.message.clone()));
+                                ctx.request_repaint(); // constantly requests UI to be redrawn, so the progress bar updates without user interaction
+                            } else {
+                                ui.label("Preparing for update...");
+                            }
                         }
-                        Err(err) => {
+                        ImmediateValueState::Success(_) => {
+                            ui.label(
+                                RichText::new("Done!").color(catppuccin_egui::MACCHIATO.green),
+                            );
+                        }
+                        ImmediateValueState::Error(err) => {
                             ui.label(
                                 RichText::new(err.to_string())
                                     .color(catppuccin_egui::MACCHIATO.red),
                             );
                         }
+                        _ => {}
                     }
                 },
             );

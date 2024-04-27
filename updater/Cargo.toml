@@ -9,9 +9,11 @@ catppuccin-egui = { version = "5.1", default-features = false, features = [
     "egui27",
 ] }
 octocrab = "0.38.0"
-pollster = "0.3.0"
 tokio = { version = "1.37.0", features = ["full"] }
 anyhow = "1.0.82"
 env_logger = "0.11.3"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
+lazy_async_promise =  { path = "./lazy_async_promise" }
+reqwest = "0.12.4"
+zip-extract = "0.1.3"
