@@ -9,6 +9,7 @@ pub struct Config {
 
 #[derive(Deserialize)]
 pub struct Main {
+    pub auto_update: bool,
     pub server: String,
     pub force_insecure: bool,
 }

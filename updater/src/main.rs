@@ -1,12 +1,16 @@
-use std::{borrow::Cow, io::Cursor, path::Path};
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+
+use std::{borrow::Cow, io::Cursor, path::Path, time::Duration};
 
 use anyhow::{anyhow, bail, Context};
 use eframe::egui::{
-    self, Align, FontData, FontDefinitions, FontFamily, IconData, Layout, ProgressBar, RichText, Vec2, ViewportBuilder
+    self, Align, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2,
+    ViewportBuilder, ViewportCommand,
 };
 use lazy_async_promise::{
     ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm, StringStatus,
 };
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
@@ -104,7 +108,7 @@ impl MyEguiApp {
                         .ok_or_else(|| anyhow!("Failed to find asset in latest release"))?;
 
                     s.send(StringStatus::new(
-                        Progress::from_percent(20),
+                        Progress::from_percent(25),
                         format!("Grabbing {}", release_asset_url).into(),
                     ))
                     .await
@@ -118,7 +122,7 @@ impl MyEguiApp {
                         .context("Failed to get response bytes")?;
 
                     s.send(StringStatus::new(
-                        Progress::from_percent(40),
+                        Progress::from_percent(50),
                         "Extracting files".into(),
                     ))
                     .await
@@ -128,6 +132,37 @@ impl MyEguiApp {
                     }
                     zip_extract::extract(Cursor::new(bytes), Path::new("."), false)
                         .context("Failed to extract zip")?;
+
+                    s.send(StringStatus::new(
+                        Progress::from_percent(75),
+                        "Launching game".into(),
+                    ))
+                    .await
+                    .unwrap();
+                    open::that_detached("steam://launch/12900")
+                        .context("Failed to launch game!")?;
+
+                    let mut system = System::new_with_specifics(
+                        RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
+                    );
+                    // Wait until the game is launched
+                    while system
+                        .processes_by_exact_name("QuestViewer.exe")
+                        .collect::<Vec<_>>()
+                        .is_empty()
+                    {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        system.refresh_processes_specifics(
+                            ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+                        );
+                    }
+
+                    s.send(StringStatus::new(
+                        Progress::from_percent(100),
+                        "Done!".into(),
+                    ))
+                    .await
+                    .unwrap();
 
                     Ok(())
                 })
@@ -163,6 +198,7 @@ impl eframe::App for MyEguiApp {
                             ui.label(
                                 RichText::new("Done!").color(catppuccin_egui::MACCHIATO.green),
                             );
+                            ctx.send_viewport_cmd(ViewportCommand::Close)
                         }
                         ImmediateValueState::Error(err) => {
                             ui.label(

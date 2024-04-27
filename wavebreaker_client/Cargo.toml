@@ -1,6 +1,6 @@
 [package]
 name = "wavebreaker_client"
-version = "3.2.0"
+version = "3.3.0"
 edition = "2021"
 
 [lib]
@@ -34,6 +34,10 @@ lofty = "0.19.0"
 url_encoded_data = "0.6.1"
 bass-sys = "2.3.0"
 rfd = "0.14.1"
+octocrab = "0.38.0"
+semver = "1.0.22"
+pollster = "0.3.0"
+tokio = { version = "1.37.0", features = ["full"] }
 
 [build-dependencies]
 bindgen = "0.69.4"
