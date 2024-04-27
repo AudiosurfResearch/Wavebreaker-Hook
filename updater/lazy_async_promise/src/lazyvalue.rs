@@ -1,9 +1,10 @@
+use std::{fmt::Debug, future::Future};
+
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+
 use crate::{
     box_future_factory, BoxedFutureFactory, DataState, DirectCacheAccess, Message, Promise,
 };
-use std::fmt::Debug;
-use std::future::Future;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 /// # A single lazy-async updated value
 /// Create one with the [`LazyValuePromise::new`] method and supply an updater.
@@ -133,11 +134,12 @@ impl<T: Debug> Promise for LazyValuePromise<T> {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
+    use tokio::{runtime::Builder, sync::mpsc::Sender};
+
     use super::*;
     use crate::api_macros::*;
-    use std::time::Duration;
-    use tokio::runtime::Builder;
-    use tokio::sync::mpsc::Sender;
 
     #[test]
     fn basic_usage_cycle() {

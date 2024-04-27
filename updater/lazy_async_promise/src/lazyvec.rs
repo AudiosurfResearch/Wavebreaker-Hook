@@ -1,10 +1,10 @@
+use std::{fmt::Debug, future::Future, mem};
+
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+
 use super::{
     box_future_factory, BoxedFutureFactory, DataState, DirectCacheAccess, Message, Promise,
 };
-use std::fmt::Debug;
-use std::future::Future;
-use std::mem;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 /// # A lazy, async and partially readable vector promise
 /// This promise is the right one for async acquiring of lists which should be partially readable on each frame.
@@ -150,11 +150,12 @@ impl<T: Debug> Promise for LazyVecPromise<T> {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
+    use tokio::{runtime::Builder, sync::mpsc::Sender};
+
     use super::*;
     use crate::api_macros::*;
-    use std::time::Duration;
-    use tokio::runtime::Builder;
-    use tokio::sync::mpsc::Sender;
 
     #[test]
     fn basic_usage_cycle() {

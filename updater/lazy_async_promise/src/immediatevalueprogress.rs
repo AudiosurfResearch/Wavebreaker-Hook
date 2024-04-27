@@ -1,9 +1,8 @@
-use crate::{DirectCacheAccess, Progress};
-use crate::{ImmediateValuePromise, ImmediateValueState};
-use std::borrow::Cow;
-use std::time::Instant;
-use tokio::sync::mpsc::Receiver;
-use tokio::sync::mpsc::Sender;
+use std::{borrow::Cow, time::Instant};
+
+use tokio::sync::mpsc::{Receiver, Sender};
+
+use crate::{DirectCacheAccess, ImmediateValuePromise, ImmediateValueState, Progress};
 
 /// A status update struct containing the issue-date, progress and a message
 /// You can use any struct that can be transferred via tokio mpsc channels.
@@ -125,10 +124,7 @@ impl<T: Send + 'static, M> ProgressTrackedImValProm<T, M> {
 
     /// Get the current progress
     pub fn get_progress(&self) -> Progress {
-        self.status
-            .last()
-            .map(|p| p.progress)
-            .unwrap_or_default()
+        self.status.last().map(|p| p.progress).unwrap_or_default()
     }
 }
 
@@ -145,9 +141,10 @@ impl<T: Send + 'static, M> DirectCacheAccess<T> for ProgressTrackedImValProm<T, 
 }
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
     use super::*;
     use crate::ImmediateValuePromise;
-    use std::time::Duration;
     #[tokio::test]
     async fn basic_usage_cycle() {
         let mut oneshot_progress = ProgressTrackedImValProm::new(

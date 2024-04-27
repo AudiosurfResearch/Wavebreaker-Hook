@@ -1,6 +1,4 @@
-use std::future::Future;
-use std::mem;
-use std::sync::Arc;
+use std::{future::Future, mem, sync::Arc};
 
 use tokio::sync::Mutex;
 
@@ -205,11 +203,12 @@ impl<T: Send + 'static> ImmediateValuePromise<T> {
 
 #[cfg(test)]
 mod test {
-    use std::fs::File;
-    use std::time::Duration;
+    use std::{fs::File, time::Duration};
 
-    use crate::immediatevalue::{ImmediateValuePromise, ImmediateValueState};
-    use crate::DirectCacheAccess;
+    use crate::{
+        immediatevalue::{ImmediateValuePromise, ImmediateValueState},
+        DirectCacheAccess,
+    };
 
     #[tokio::test]
     async fn default() {

@@ -23,26 +23,19 @@
 
 extern crate core;
 
-use std::error::Error;
-use std::fmt::Debug;
-use std::future::Future;
-use std::ops::Deref;
-use std::pin::Pin;
-
-use tokio::sync::mpsc::Sender;
+use std::{error::Error, fmt::Debug, future::Future, ops::Deref, pin::Pin};
 
 #[doc(inline)]
 pub use immediatevalue::ImmediateValuePromise;
 pub use immediatevalue::ImmediateValueState;
 #[doc(inline)]
 pub use immediatevalueprogress::ProgressTrackedImValProm;
-pub use immediatevalueprogress::Status;
-pub use immediatevalueprogress::StringStatus;
-
+pub use immediatevalueprogress::{Status, StringStatus};
 #[doc(inline)]
 pub use lazyvalue::LazyValuePromise;
 #[doc(inline)]
 pub use lazyvec::LazyVecPromise;
+use tokio::sync::mpsc::Sender;
 
 mod immediatevalue;
 mod immediatevalueprogress;
@@ -104,12 +97,7 @@ impl<T: Into<f64>> From<T> for Progress {
 
 /// Use this to get all macros
 pub mod api_macros {
-    pub use crate::send_data;
-    pub use crate::set_error;
-    pub use crate::set_finished;
-    pub use crate::set_progress;
-    pub use crate::unpack_result;
-    pub use crate::Progress;
+    pub use crate::{send_data, set_error, set_finished, set_progress, unpack_result, Progress};
 }
 
 impl Progress {

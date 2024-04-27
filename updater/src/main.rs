@@ -86,9 +86,30 @@ impl MyEguiApp {
         ProgressTrackedImValProm::new(
             |s| {
                 ImmediateValuePromise::new(async move {
-                    //Start with getting the latest release of the hook
+                    let mut system = System::new_with_specifics(
+                        RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
+                    );
+
+                    // Start by waiting for the game to close
                     s.send(StringStatus::new(
                         Progress::from_percent(0),
+                        "Waiting for the game to close".into(),
+                    ))
+                    .await
+                    .unwrap();
+                    while !system
+                        .processes_by_exact_name("QuestViewer.exe")
+                        .collect::<Vec<_>>()
+                        .is_empty()
+                    {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        system.refresh_processes_specifics(
+                            ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+                        );
+                    }
+
+                    s.send(StringStatus::new(
+                        Progress::from_percent(20),
                         "Getting release from GitHub".into(),
                     ))
                     .await
@@ -108,8 +129,8 @@ impl MyEguiApp {
                         .ok_or_else(|| anyhow!("Failed to find asset in latest release"))?;
 
                     s.send(StringStatus::new(
-                        Progress::from_percent(25),
-                        format!("Grabbing {}", release_asset_url).into(),
+                        Progress::from_percent(40),
+                        format!("Get: {}", release_asset_url.path()).into(),
                     ))
                     .await
                     .unwrap();
@@ -122,7 +143,7 @@ impl MyEguiApp {
                         .context("Failed to get response bytes")?;
 
                     s.send(StringStatus::new(
-                        Progress::from_percent(50),
+                        Progress::from_percent(60),
                         "Extracting files".into(),
                     ))
                     .await
@@ -130,11 +151,12 @@ impl MyEguiApp {
                     if !Path::new("./channels").exists() && !Path::new("./3rd").exists() {
                         bail!("Invalid folder structure! Is this really the game's engine folder?");
                     }
+                    // automatically overwrites existing files
                     zip_extract::extract(Cursor::new(bytes), Path::new("."), false)
                         .context("Failed to extract zip")?;
 
                     s.send(StringStatus::new(
-                        Progress::from_percent(75),
+                        Progress::from_percent(80),
                         "Launching game".into(),
                     ))
                     .await
@@ -142,9 +164,6 @@ impl MyEguiApp {
                     open::that_detached("steam://launch/12900")
                         .context("Failed to launch game!")?;
 
-                    let mut system = System::new_with_specifics(
-                        RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
-                    );
                     // Wait until the game is launched
                     while system
                         .processes_by_exact_name("QuestViewer.exe")
