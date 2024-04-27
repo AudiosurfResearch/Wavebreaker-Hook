@@ -15,7 +15,6 @@ use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use pollster::FutureExt;
 use tracing::{debug, error, info};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -36,7 +35,7 @@ use windows::{
 
 use crate::hooking::{deinit_hooks, init_hooks};
 
-unsafe fn main() -> anyhow::Result<()> {
+async unsafe fn main() -> anyhow::Result<()> {
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("wavebreaker_client")
@@ -64,7 +63,7 @@ unsafe fn main() -> anyhow::Result<()> {
         let release = repo
             .releases()
             .get_latest()
-            .block_on()
+            .await
             .context("Failed to get releases from repo")?;
         let tag_version =
             semver::Version::parse(&release.tag_name).context("Failed to parse tag")?;
@@ -75,7 +74,7 @@ unsafe fn main() -> anyhow::Result<()> {
         );
         if tag_version > current_version {
             info!("New version {} available!", tag_version);
-            std::process::exit(0); //just brutally kill the game
+            std::process::exit(0); //just kill the game
         }
     }
 
@@ -118,27 +117,31 @@ unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c
             &mut handle as *mut HMODULE,
         );
 
-        // TODO: Use WinAPI thread functions directly and properly clean up on detach!
+        // TODO: Properly clean up on detach!
         thread::spawn(|| {
-            match main() {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("{:?}", e);
-                    let error_cstr = CString::new(format!(
-                        "{:?}\r\nThe client will be unloaded.\r\nPlease report this issue!",
-                        e
-                    ))
-                    .unwrap();
-                    let error_pcstr = PCSTR::from_raw(error_cstr.as_bytes_with_nul().as_ptr());
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
 
-                    MessageBoxA(
-                        HWND(0),
-                        error_pcstr,
-                        s!("Wavebreaker client fatal error"),
-                        MB_OK | MB_ICONERROR,
-                    );
-                }
-            };
+            rt.block_on(async {
+                match main().await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        error!("{:?}", e);
+                        let error_cstr = CString::new(format!(
+                            "{:?}\r\nThe client will be unloaded.\r\nPlease report this issue!",
+                            e
+                        ))
+                        .unwrap();
+                        let error_pcstr = PCSTR::from_raw(error_cstr.as_bytes_with_nul().as_ptr());
+
+                        MessageBoxA(
+                            HWND(0),
+                            error_pcstr,
+                            s!("Wavebreaker client fatal error"),
+                            MB_OK | MB_ICONERROR,
+                        );
+                    }
+                };
+            });
         });
     }
 
