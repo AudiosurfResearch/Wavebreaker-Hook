@@ -6,6 +6,7 @@ This enables Audiosurf to connect to [the public testing instance of Wavebreaker
 It *should* be able to connect to the official server as well, but that is *not* its primary intended use and keeping compatibility with the original server is not explicitly a goal of this project.
 
 ## Features
+- Includes an automatic updater, so users don't have to re-run the installer every time.
 - Forces HTTPS for every request.
 - If present, the [MusicBrainz ID](https://musicbrainz.org/doc/MusicBrainz_Identifier) of the [recording](https://musicbrainz.org/doc/Recording) is sent to the server, if it's present in a song file's metadata.
 - Can optionally force HTTP (without the S) to aid in custom server development.

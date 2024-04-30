@@ -5,6 +5,7 @@ mod state;
 
 use std::{
     ffi::{c_void, CString},
+    path::Path,
     thread,
 };
 
@@ -72,8 +73,14 @@ async unsafe fn main() -> anyhow::Result<()> {
             "Current version {}, latest is tag_version {}",
             current_version, tag_version
         );
+        if Path::exists(Path::new("./wavebreaker_up.exenew")) {
+            std::fs::rename("wavebreaker_up.exenew", "wavebreaker_up.exe")
+                .context("Failed to replace old updater with new one")?;
+        }
+
         if tag_version > current_version {
             info!("New version {} available!", tag_version);
+            open::that_detached("./wavebreaker_up.exe").context("Failed to open updater")?;
             std::process::exit(0); //just kill the game
         }
     }
