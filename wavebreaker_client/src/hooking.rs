@@ -276,9 +276,9 @@ unsafe fn connect_hook(
 
 #[crochet::hook(compile_check, "Wininet.dll", "HttpOpenRequestA")]
 unsafe fn openrequest_hook(
-    hconnect: c_int,
+    hconnect: *const c_void,
     verb: PCSTR,
-    object_name: PCSTR,
+    mut object_name: PCSTR,
     version: PCSTR,
     referrer: PCSTR,
     accept_types: *const PCSTR,
@@ -292,7 +292,28 @@ unsafe fn openrequest_hook(
         flags
     );
 
+    let path = &object_name.to_string().unwrap();
+
     let config = CONFIG.get().unwrap();
+    if let Some(new_base_path) = &config.main.base_path {
+        if path.ends_with(".php") || path.ends_with(".cgr") {
+            debug!("Route seems to be for game server. base_path is set, rewriting path");
+            
+            let mut new_base_path = new_base_path.to_owned();
+            // If the path doesn't start with a slash, add one
+            // If the path ends with a slash, remove it
+            if !new_base_path.starts_with('/') {
+                new_base_path.insert(0, '/');
+            }
+            if new_base_path.ends_with('/') {
+                new_base_path.pop();
+            }
+            new_base_path.push_str(path);
+            let new_base_path = malloc_c_string(&new_base_path);
+            object_name = PCSTR(new_base_path.cast());
+        }
+    }
+
     if config.main.force_insecure {
         flags &= !INTERNET_FLAG_SECURE;
     } else {

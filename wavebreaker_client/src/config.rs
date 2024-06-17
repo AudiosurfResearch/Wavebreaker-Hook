@@ -11,6 +11,7 @@ pub struct Config {
 pub struct Main {
     pub auto_update: bool,
     pub server: String,
+    pub base_path: Option<String>,
     pub force_insecure: bool,
 }
 

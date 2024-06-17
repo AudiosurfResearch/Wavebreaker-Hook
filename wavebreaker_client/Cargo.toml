@@ -1,6 +1,6 @@
 [package]
 name = "wavebreaker_client"
-version = "3.3.0"
+version = "3.4.0"
 edition = "2021"
 
 [lib]
@@ -24,20 +24,20 @@ features = [
 
 [dependencies]
 anyhow = "1.*"
-serde = { version = "1.0.196", features = ["derive"] }
+serde = { version = "1.0.*", features = ["derive"] }
 tracing = "0.*"
 tracing-appender = "0.*"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 figment = { version = "0.*", features = ["toml", "env"] }
 crochet = "0.2.3"
-lofty = "0.19.0"
+lofty = "0.20.0"
 url_encoded_data = "0.6.1"
 bass-sys = "2.3.0"
 rfd = "0.14.1"
 octocrab = "0.38.0"
-semver = "1.0.22"
-tokio = { version = "1.37.0", features = ["full"] }
-open = "5.1.2"
+semver = "1.0.23"
+tokio = { version = "1.38.0", features = ["full"] }
+open = "5.1.*"
 
 [build-dependencies]
 bindgen = "0.69.4"
