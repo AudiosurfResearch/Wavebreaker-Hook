@@ -117,7 +117,7 @@ unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c
         let _ = DisableThreadLibraryCalls(hinst);
 
         // Bump the reference count so we don't get unloaded
-        let mut handle = HMODULE(0);
+        let mut handle = HMODULE(std::ptr::null_mut());
         let _ = GetModuleHandleExW(
             GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
             PCWSTR::from_raw(DllMain as *const () as *const u16),
@@ -141,7 +141,7 @@ unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c
                         let error_pcstr = PCSTR::from_raw(error_cstr.as_bytes_with_nul().as_ptr());
 
                         MessageBoxA(
-                            HWND(0),
+                            Some(HWND(std::ptr::null_mut())),
                             error_pcstr,
                             s!("Wavebreaker client fatal error"),
                             MB_OK | MB_ICONERROR,
