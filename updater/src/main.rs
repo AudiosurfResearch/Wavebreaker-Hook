@@ -3,15 +3,23 @@
 use std::{borrow::Cow, ffi::OsStr, io::Cursor, path::Path, time::Duration};
 
 use anyhow::{anyhow, Context};
+use catppuccin_egui::{Theme, MACCHIATO};
 use eframe::egui::{
-    self, Align, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2,
-    ViewportBuilder, ViewportCommand,
+    self, ecolor, Align, Color32, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2, ViewportBuilder, ViewportCommand
 };
 use lazy_async_promise::{
     BoxedSendError, ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm,
     StringStatus,
 };
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+
+const WAVEBREAKER_THEME: Theme = Theme {
+    base: ecolor::hex_color!("#1D202F"),
+    text: ecolor::hex_color!("#C8D3F5"),
+    red: ecolor::hex_color!("#FF5370"),
+    green: ecolor::hex_color!("#36D399"),
+    ..MACCHIATO
+};
 
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
@@ -76,7 +84,7 @@ impl MyEguiApp {
 
         cc.egui_ctx.set_fonts(fonts);
 
-        catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MACCHIATO);
+        catppuccin_egui::set_theme(&cc.egui_ctx, WAVEBREAKER_THEME);
 
         Self {
             update_task: Self::run_update(),
@@ -230,14 +238,14 @@ impl eframe::App for MyEguiApp {
                         }
                         ImmediateValueState::Success(_) => {
                             ui.label(
-                                RichText::new("Done!").color(catppuccin_egui::MACCHIATO.green),
+                                RichText::new("Done! If the game doesn't start, close this window and start it yourself").color(WAVEBREAKER_THEME.green),
                             );
                             ctx.send_viewport_cmd(ViewportCommand::Close)
                         }
                         ImmediateValueState::Error(err) => {
                             ui.label(
                                 RichText::new(err.to_string())
-                                    .color(catppuccin_egui::MACCHIATO.red),
+                                    .color(WAVEBREAKER_THEME.red),
                             );
                         }
                         _ => {}
