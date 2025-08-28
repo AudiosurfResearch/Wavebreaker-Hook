@@ -201,6 +201,7 @@ unsafe fn send_hook(
         || url.ends_with("/as_steamlogin/game_SendRideSteamVerified.php")
     {
         new_form_data.set_one("wvbrclientversion", env!("CARGO_PKG_VERSION"));
+        debug!("Injected wvbrclientversion into form");
     }
 
     // Add Steam auth ticket when fetching song ID
@@ -208,6 +209,7 @@ unsafe fn send_hook(
         if let Some(ticket) = &global_data.ticket {
             new_form_data.set_one("ticket", ticket);
         }
+        debug!("Injected ticket into fetchsongid endpoint");
     }
 
     // Add recording and release MBIDs (if present), when fetching song ID and submitting a score
@@ -220,12 +222,15 @@ unsafe fn send_hook(
         if let Some(release_mbid) = &global_data.current_release_mbid {
             new_form_data.set_one("releasembid", release_mbid);
         }
+        debug!("Injected MBIDs into form")
     }
 
     // if nothing changed, we don't need to allocate a new string
     if new_form_data.to_string_of_original_order() == form_data.to_string_of_original_order() {
+        debug!("calling original function, form data unchanged");
         call_original!(hrequest, headers, headers_len, optional, optional_len)
     } else {
+        debug!("Calling original function with new data");
         let new_data_string = new_form_data.to_string_of_original_order();
         let new_data = malloc_c_string(&new_data_string) as *mut c_void; // allocate new string
 
@@ -395,7 +400,7 @@ unsafe extern "thiscall" fn call_folderexploder_hook(this: *mut A3d_Channel) {
     call_original!(this);
 }
 
-#[crochet::hook(library = "comdlg32.dll", symbol = "GetOpenFileNameA")]
+#[crochet::hook(compile_check, library = "comdlg32.dll", symbol = "GetOpenFileNameA")]
 unsafe fn getopenfilename_hook(param: *mut OPENFILENAMEA) -> i32 {
     trace!("getopenfilename_hook called");
 
