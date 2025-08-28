@@ -180,7 +180,7 @@ impl MyEguiApp {
                     ))
                     .await
                     .unwrap();
-                    open::that_detached("steam://launch/12900")
+                    open::that_detached("../Audiosurf.exe")
                         .context("Failed to launch game!")
                         .map_err(|e| BoxedSendError(e.into()))?;
 
