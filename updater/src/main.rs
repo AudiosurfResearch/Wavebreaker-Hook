@@ -5,7 +5,7 @@ use std::{borrow::Cow, ffi::OsStr, io::Cursor, path::Path, time::Duration};
 use anyhow::{anyhow, Context};
 use catppuccin_egui::{Theme, MACCHIATO};
 use eframe::egui::{
-    self, ecolor, Align, Color32, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2, ViewportBuilder, ViewportCommand
+    self, Align, Color32, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2, ViewportBuilder, ViewportCommand
 };
 use lazy_async_promise::{
     BoxedSendError, ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm,
@@ -14,10 +14,10 @@ use lazy_async_promise::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 
 const WAVEBREAKER_THEME: Theme = Theme {
-    base: ecolor::hex_color!("#1D202F"),
-    text: ecolor::hex_color!("#C8D3F5"),
-    red: ecolor::hex_color!("#FF5370"),
-    green: ecolor::hex_color!("#36D399"),
+    base: Color32::from_rgb(29, 32, 47),
+    text: Color32::from_rgb(200, 211, 245),
+    red: Color32::from_rgb(255, 83, 112),
+    green: Color32::from_rgb(54, 211, 153),
     ..MACCHIATO
 };
 
