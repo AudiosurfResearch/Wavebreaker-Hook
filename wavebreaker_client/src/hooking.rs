@@ -38,7 +38,7 @@ unsafe fn u16_ptr_to_string(ptr: *const u16) -> OsString {
     OsString::from_wide(slice)
 }
 
-#[crochet::hook("BASS_PreCalcSong.dll", "?CallChannel@Aco_BASS_PreCalcSong@@UAEXXZ")]
+#[crochet::hook(library = "BASS_PreCalcSong.dll", symbol = "?CallChannel@Aco_BASS_PreCalcSong@@UAEXXZ")]
 unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
     call_original!(this);
 
@@ -140,7 +140,7 @@ unsafe extern "thiscall" fn precalcsong_call_hook(this: *mut A3d_Channel) {
     };
 }
 
-#[crochet::hook(compile_check, "Wininet.dll", "HttpSendRequestA")]
+#[crochet::hook(compile_check, library = "Wininet.dll", symbol = "HttpSendRequestA")]
 unsafe fn send_hook(
     hrequest: *const c_void,
     headers: PCSTR,
@@ -239,7 +239,7 @@ unsafe fn send_hook(
     }
 }
 
-#[crochet::hook(compile_check, "Wininet.dll", "InternetConnectA")]
+#[crochet::hook(compile_check, library = "Wininet.dll", symbol = "InternetConnectA")]
 unsafe fn connect_hook(
     hinternet: c_int,
     server_name: PCSTR,
@@ -274,7 +274,7 @@ unsafe fn connect_hook(
     )
 }
 
-#[crochet::hook(compile_check, "Wininet.dll", "HttpOpenRequestA")]
+#[crochet::hook(compile_check, library =  "Wininet.dll", symbol = "HttpOpenRequestA")]
 unsafe fn openrequest_hook(
     hconnect: *const c_void,
     verb: PCSTR,
@@ -339,8 +339,8 @@ unsafe fn openrequest_hook(
 }
 
 #[crochet::hook(
-    "HTTP_Fetch_Unicode.dll",
-    "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ"
+    library = "HTTP_Fetch_Unicode.dll",
+    symbol = "?GetTargetServer@HTTP_Fetch_Unicode@@UAEPADXZ"
 )]
 unsafe extern "thiscall" fn gettargetserver_unicode_hook(this_ptr: c_int) -> *const c_char {
     trace!("gettargetserver_unicode_hook called: {:?}", this_ptr);
@@ -359,8 +359,8 @@ unsafe extern "thiscall" fn gettargetserver_unicode_hook(this_ptr: c_int) -> *co
 }
 
 #[crochet::hook(
-    "17C5B19F-4273-423C-A158-CA6F73046D43.dll",
-    "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ"
+    library = "17C5B19F-4273-423C-A158-CA6F73046D43.dll",
+    symbol = "?GetTargetServer@Aco_HTTP_Fetch@@UAEPADXZ"
 )]
 unsafe extern "thiscall" fn gettargetserver_hook(this_ptr: c_int) -> *const c_char {
     trace!("gettargetserver_hook called: {:?}", this_ptr);
@@ -375,7 +375,7 @@ unsafe extern "thiscall" fn gettargetserver_hook(this_ptr: c_int) -> *const c_ch
     malloc_c_string(&new_str) as *const c_char
 }
 
-#[crochet::hook("FolderExploder.dll", "?CallChannel@FolderExploder@@UAEXXZ")]
+#[crochet::hook(library = "FolderExploder.dll", symbol = "?CallChannel@FolderExploder@@UAEXXZ")]
 unsafe extern "thiscall" fn call_folderexploder_hook(this: *mut A3d_Channel) {
     trace!("call_folderexploder_hook called");
     let channel = this.as_mut().unwrap();
@@ -395,7 +395,7 @@ unsafe extern "thiscall" fn call_folderexploder_hook(this: *mut A3d_Channel) {
     call_original!(this);
 }
 
-#[crochet::hook("comdlg32.dll", "GetOpenFileNameA")]
+#[crochet::hook(library = "comdlg32.dll", symbol = "GetOpenFileNameA")]
 unsafe fn getopenfilename_hook(param: *mut OPENFILENAMEA) -> i32 {
     trace!("getopenfilename_hook called");
 
@@ -439,7 +439,7 @@ unsafe fn malloc_c_string(s: &str) -> *mut () {
     memory
 }
 
-extern "C" {
+unsafe extern "C" {
     fn malloc(n: usize) -> *mut ();
 }
 

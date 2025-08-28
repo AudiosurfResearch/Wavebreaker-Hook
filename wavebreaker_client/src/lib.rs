@@ -1,10 +1,12 @@
+#![allow(unsafe_op_in_unsafe_fn)] //Don't want to be warned for unsafe operations in unsafe functions
+
 mod config;
 mod hooking;
 mod q3d_bindings;
 mod state;
 
 use std::{
-    ffi::{c_void, CString},
+    ffi::{CString, c_void},
     path::Path,
     thread,
 };
@@ -13,25 +15,25 @@ use anyhow::Context;
 use bass_sys::{BASS_ErrorGetCode, BASS_PluginLoad};
 use config::Config;
 use figment::{
-    providers::{Env, Format, Toml},
     Figment,
+    providers::{Env, Format, Toml},
 };
 use tracing::{debug, error, info};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use windows::{
-    core::{s, PCSTR, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HMODULE, HWND, TRUE},
+        Foundation::{HMODULE, HWND, TRUE},
         System::{
             LibraryLoader::{
-                DisableThreadLibraryCalls, GetModuleHandleA, GetModuleHandleExW,
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
+                DisableThreadLibraryCalls, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+                GET_MODULE_HANDLE_EX_FLAG_PIN, GetModuleHandleA, GetModuleHandleExW,
             },
             SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
         },
-        UI::WindowsAndMessaging::{MessageBoxA, MB_ICONERROR, MB_OK},
+        UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxA},
     },
+    core::{BOOL, PCSTR, PCWSTR, s},
 };
 
 use crate::hooking::{deinit_hooks, init_hooks};
@@ -85,18 +87,20 @@ async unsafe fn main() -> anyhow::Result<()> {
         }
     }
 
-    while GetModuleHandleA(s!("17C5B19F-4273-423C-A158-CA6F73046D43.dll")).is_err()
-        || GetModuleHandleA(s!("HTTP_Fetch_Unicode.dll")).is_err()
-        || GetModuleHandleA(s!("bass.dll")).is_err()
-        || GetModuleHandleA(s!("BASS_PreCalcSong.dll")).is_err()
-        || GetModuleHandleA(s!("GetFileAttributes.dll")).is_err()
-        || GetModuleHandleA(s!("comdlg32.dll")).is_err()
-        || GetModuleHandleA(s!("FolderExploder.dll")).is_err()
-    {
-        thread::sleep(std::time::Duration::from_millis(150));
+    unsafe {
+        while GetModuleHandleA(s!("17C5B19F-4273-423C-A158-CA6F73046D43.dll")).is_err()
+            || GetModuleHandleA(s!("HTTP_Fetch_Unicode.dll")).is_err()
+            || GetModuleHandleA(s!("bass.dll")).is_err()
+            || GetModuleHandleA(s!("BASS_PreCalcSong.dll")).is_err()
+            || GetModuleHandleA(s!("GetFileAttributes.dll")).is_err()
+            || GetModuleHandleA(s!("comdlg32.dll")).is_err()
+            || GetModuleHandleA(s!("FolderExploder.dll")).is_err()
+        {
+            thread::sleep(std::time::Duration::from_millis(150));
+        }
+        info!("Necessary DLLs loaded, attaching hooks");
+        init_hooks()?;
     }
-    info!("Necessary DLLs loaded, attaching hooks");
-    init_hooks()?;
 
     info!("Loading Opus BASS plugin");
     let opus_plugin_name = CString::new("bassopus").unwrap();
@@ -110,44 +114,49 @@ async unsafe fn main() -> anyhow::Result<()> {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case, unused_variables, unreachable_patterns)]
 unsafe extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c_void) -> BOOL {
     if reason == DLL_PROCESS_ATTACH {
-        let _ = DisableThreadLibraryCalls(hinst);
+        unsafe {
+            let _ = DisableThreadLibraryCalls(hinst);
 
-        // Bump the reference count so we don't get unloaded
-        let mut handle = HMODULE(0);
-        let _ = GetModuleHandleExW(
-            GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-            PCWSTR::from_raw(DllMain as *const () as *const u16),
-            &mut handle as *mut HMODULE,
-        );
+            // Bump the reference count so we don't get unloaded
+            let mut handle = HMODULE(std::ptr::null_mut());
+            let _ = GetModuleHandleExW(
+                GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+                PCWSTR::from_raw(DllMain as *const () as *const u16),
+                &mut handle as *mut HMODULE,
+            );
+        }
 
         // TODO: Properly clean up on detach!
         thread::spawn(|| {
             let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
 
             rt.block_on(async {
-                match main().await {
-                    Ok(_) => (),
-                    Err(e) => {
-                        error!("{:?}", e);
-                        let error_cstr = CString::new(format!(
-                            "{:?}\r\nThe client will be unloaded.\r\nPlease report this issue!",
-                            e
-                        ))
-                        .unwrap();
-                        let error_pcstr = PCSTR::from_raw(error_cstr.as_bytes_with_nul().as_ptr());
+                unsafe {
+                    match main().await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("{:?}", e);
+                            let error_cstr = CString::new(format!(
+                                "{:?}\r\nThe client will be unloaded.\r\nPlease report this issue!",
+                                e
+                            ))
+                            .unwrap();
+                            let error_pcstr =
+                                PCSTR::from_raw(error_cstr.as_bytes_with_nul().as_ptr());
 
-                        MessageBoxA(
-                            HWND(0),
-                            error_pcstr,
-                            s!("Wavebreaker client fatal error"),
-                            MB_OK | MB_ICONERROR,
-                        );
-                    }
-                };
+                            MessageBoxA(
+                                Some(HWND(std::ptr::null_mut())),
+                                error_pcstr,
+                                s!("Wavebreaker client fatal error"),
+                                MB_OK | MB_ICONERROR,
+                            );
+                        }
+                    };
+                }
             });
         });
     }
