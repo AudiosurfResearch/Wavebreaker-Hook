@@ -5,7 +5,8 @@ use std::{borrow::Cow, ffi::OsStr, io::Cursor, path::Path, time::Duration};
 use anyhow::{anyhow, Context};
 use catppuccin_egui::{Theme, MACCHIATO};
 use eframe::egui::{
-    self, Align, Color32, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2, ViewportBuilder, ViewportCommand
+    self, Align, Color32, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText,
+    Vec2, ViewportBuilder, ViewportCommand,
 };
 use lazy_async_promise::{
     BoxedSendError, ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm,
@@ -180,17 +181,21 @@ impl MyEguiApp {
                     ))
                     .await
                     .unwrap();
-                    open::that_detached("../Audiosurf.exe")
+                    let mut cwd = std::env::current_dir()?;
+                    cwd.push("Q3DStart.q3d");
+                    open::with_detached(cwd, "./QuestViewer.exe")
                         .context("Failed to launch game!")
                         .map_err(|e| BoxedSendError(e.into()))?;
 
                     // Wait until the game is launched
+                    /*
                     while system
                         .processes_by_exact_name(OsStr::new("QuestViewer.exe"))
                         .collect::<Vec<_>>()
                         .is_empty()
                     {
-                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        tracing::debug!("Waiting for QuestViewer to start");
+                        tokio::time::sleep(Duration::from_millis(200)).await;
                         system.refresh_processes_specifics(
                             ProcessesToUpdate::All,
                             true,
@@ -198,6 +203,7 @@ impl MyEguiApp {
                                 .with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
                         );
                     }
+                    */
 
                     s.send(StringStatus::new(
                         Progress::from_percent(100),

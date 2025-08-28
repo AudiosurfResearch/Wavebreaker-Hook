@@ -6,9 +6,9 @@ mod q3d_bindings;
 mod state;
 
 use std::{
-    ffi::{CString, c_void},
+    ffi::{c_void, CString},
     path::Path,
-    thread,
+    thread, time::Duration,
 };
 
 use anyhow::Context;
@@ -76,6 +76,8 @@ async unsafe fn main() -> anyhow::Result<()> {
             current_version, tag_version
         );
         if Path::exists(Path::new("./wavebreaker_up.exenew")) {
+            debug!("Attempting to replace old updater executable");
+            std::thread::sleep(Duration::from_millis(100));
             std::fs::rename("wavebreaker_up.exenew", "wavebreaker_up.exe")
                 .context("Failed to replace old updater with new one")?;
         }
