@@ -1,16 +1,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::{borrow::Cow, io::Cursor, path::Path, time::Duration};
+use std::{borrow::Cow, ffi::OsStr, io::Cursor, path::Path, time::Duration};
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{anyhow, Context};
 use eframe::egui::{
     self, Align, FontData, FontDefinitions, FontFamily, Layout, ProgressBar, RichText, Vec2,
     ViewportBuilder, ViewportCommand,
 };
 use lazy_async_promise::{
-    ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm, StringStatus,
+    BoxedSendError, ImmediateValuePromise, ImmediateValueState, Progress, ProgressTrackedImValProm,
+    StringStatus,
 };
-use sysinfo::{ProcessRefreshKind, RefreshKind, System};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
@@ -37,7 +38,7 @@ async fn main() -> eframe::Result<()> {
     eframe::run_native(
         "WavebreakerUpdater",
         native_options,
-        Box::new(|cc| Box::new(MyEguiApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(MyEguiApp::new(cc)))),
     )
 }
 
@@ -56,7 +57,7 @@ impl MyEguiApp {
         // Install Inter
         fonts.font_data.insert(
             "inter".to_owned(),
-            FontData::from_static(include_bytes!("../fonts/Inter.ttf")),
+            FontData::from_static(include_bytes!("../fonts/Inter.ttf")).into(),
         ); // .ttf and .otf supported
 
         // Give Inter the highest priority
@@ -87,7 +88,7 @@ impl MyEguiApp {
             |s| {
                 ImmediateValuePromise::new(async move {
                     let mut system = System::new_with_specifics(
-                        RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
+                        RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
                     );
 
                     // Start by waiting for the game to close
@@ -98,13 +99,16 @@ impl MyEguiApp {
                     .await
                     .unwrap();
                     while !system
-                        .processes_by_exact_name("QuestViewer.exe")
+                        .processes_by_exact_name(OsStr::new("QuestViewer.exe"))
                         .collect::<Vec<_>>()
                         .is_empty()
                     {
                         tokio::time::sleep(Duration::from_millis(500)).await;
                         system.refresh_processes_specifics(
-                            ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+                            ProcessesToUpdate::All,
+                            true,
+                            ProcessRefreshKind::nothing()
+                                .with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
                         );
                     }
 
@@ -112,21 +116,22 @@ impl MyEguiApp {
                         Progress::from_percent(20),
                         "Getting release from GitHub".into(),
                     ))
-                    .await
-                    .unwrap();
+                    .await?;
                     let octocrab = octocrab::instance();
                     let repo = octocrab.repos("AudiosurfResearch", "Wavebreaker-Hook");
                     let release = repo
                         .releases()
                         .get_latest()
                         .await
-                        .context("Failed to get releases from repo")?;
+                        .context("Failed to get releases from repo")
+                        .map_err(|e| BoxedSendError(e.into()))?;
                     let release_asset_url = release
                         .assets
                         .iter()
                         .find(|asset| asset.name == "Wavebreaker-Package.zip")
                         .map(|asset| asset.browser_download_url.clone())
-                        .ok_or_else(|| anyhow!("Failed to find asset in latest release"))?;
+                        .ok_or_else(|| anyhow!("Failed to find asset in latest release"))
+                        .map_err(|e| BoxedSendError(e.into()))?;
 
                     s.send(StringStatus::new(
                         Progress::from_percent(40),
@@ -136,11 +141,13 @@ impl MyEguiApp {
                     .unwrap();
                     let response = reqwest::get(release_asset_url)
                         .await
-                        .context("Failed to download release asset")?;
+                        .context("Failed to download release asset")
+                        .map_err(|e| BoxedSendError(e.into()))?;
                     let bytes = response
                         .bytes()
                         .await
-                        .context("Failed to get response bytes")?;
+                        .context("Failed to get response bytes")
+                        .map_err(|e| BoxedSendError(e.into()))?;
 
                     s.send(StringStatus::new(
                         Progress::from_percent(60),
@@ -149,11 +156,15 @@ impl MyEguiApp {
                     .await
                     .unwrap();
                     if !Path::new("./channels").exists() && !Path::new("./3rd").exists() {
-                        bail!("Invalid folder structure! Is this really the game's engine folder?");
+                        return Err(anyhow!(
+                            "Invalid folder structure! Is this really the game's engine folder?"
+                        ))
+                        .map_err(|e| BoxedSendError(e.into()))?;
                     }
                     // automatically overwrites existing files
                     zip_extract::extract(Cursor::new(bytes), Path::new("."), false)
-                        .context("Failed to extract zip")?;
+                        .context("Failed to extract zip")
+                        .map_err(|e| BoxedSendError(e.into()))?;
 
                     s.send(StringStatus::new(
                         Progress::from_percent(80),
@@ -162,17 +173,21 @@ impl MyEguiApp {
                     .await
                     .unwrap();
                     open::that_detached("steam://launch/12900")
-                        .context("Failed to launch game!")?;
+                        .context("Failed to launch game!")
+                        .map_err(|e| BoxedSendError(e.into()))?;
 
                     // Wait until the game is launched
                     while system
-                        .processes_by_exact_name("QuestViewer.exe")
+                        .processes_by_exact_name(OsStr::new("QuestViewer.exe"))
                         .collect::<Vec<_>>()
                         .is_empty()
                     {
                         tokio::time::sleep(Duration::from_millis(500)).await;
                         system.refresh_processes_specifics(
-                            ProcessRefreshKind::new().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+                            ProcessesToUpdate::All,
+                            true,
+                            ProcessRefreshKind::nothing()
+                                .with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
                         );
                     }
 
