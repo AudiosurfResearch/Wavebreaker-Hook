@@ -16,6 +16,6 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
 lazy_async_promise = "0.6.0"
 reqwest = "0.12.4"
-zip-extract = "0.4.1"
 open = "5.1.2"
 sysinfo = "0.37.0"
+zip = "4.5.0"

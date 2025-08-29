@@ -13,6 +13,7 @@ use lazy_async_promise::{
     StringStatus,
 };
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+use zip::ZipArchive;
 
 const WAVEBREAKER_THEME: Theme = Theme {
     base: Color32::from_rgb(29, 32, 47),
@@ -170,10 +171,9 @@ impl MyEguiApp {
                         ))
                         .map_err(|e| BoxedSendError(e.into()))?;
                     }
+
                     // automatically overwrites existing files
-                    zip_extract::extract(Cursor::new(bytes), Path::new("."), false)
-                        .context("Failed to extract zip")
-                        .map_err(|e| BoxedSendError(e.into()))?;
+                    ZipArchive::new(Cursor::new(bytes))?.extract(Path::new("."))?;
 
                     s.send(StringStatus::new(
                         Progress::from_percent(80),
