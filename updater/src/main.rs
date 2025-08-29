@@ -181,7 +181,8 @@ impl MyEguiApp {
                     ))
                     .await
                     .unwrap();
-                    let mut cwd = std::env::current_dir()?;
+                    let mut cwd = std::env::current_exe()?;
+                    cwd.pop(); //pop exe from pathbuf, we want the directory
                     cwd.push("Q3DStart.q3d");
                     open::with_detached(cwd, "./QuestViewer.exe")
                         .context("Failed to launch game!")
