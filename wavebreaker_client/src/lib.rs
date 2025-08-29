@@ -6,9 +6,10 @@ mod q3d_bindings;
 mod state;
 
 use std::{
-    ffi::{c_void, CString},
+    ffi::{CString, c_void},
     path::Path,
-    thread, time::Duration,
+    thread,
+    time::Duration,
 };
 
 use anyhow::Context;
